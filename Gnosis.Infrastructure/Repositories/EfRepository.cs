@@ -1,8 +1,7 @@
 ﻿using Gnosis.Domain.Interfaces;
-using Gnosis.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
-namespace Gnosis.Infrastructure;
+namespace Gnosis.Infrastructure.Repositories;
 
 // Usamos el constructor principal directamente en la definición de la clase EfRepository<T>(GnosisDbContext context)
 public class EfRepository<T>(GnosisDbContext context) : IRepository<T> where T : class
