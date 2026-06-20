@@ -1,4 +1,6 @@
 <Solution>
   <Project Path="Gnosis.Business/Gnosis.Business.csproj" Id="42022f31-15e4-4717-94a3-7216ed92e4be" />
   <Project Path="Gnosis.Domain/Gnosis.Domain.csproj" />
+  <Project Path="Gnosis.Infrastructure/Gnosis.Infrastructure.csproj" />
+  <Project Path="Gnosis.WebUI/Gnosis.WebUI.csproj" />
 </Solution>
