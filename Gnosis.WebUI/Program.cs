@@ -1,6 +1,8 @@
+using Gnosis.Business.Services;
+using Gnosis.Domain.Interfaces;
+using Gnosis.WebUI;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
-using Gnosis.WebUI;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -14,5 +16,7 @@ builder.Services.AddHttpClient<ITareaHttpProxy, TareaHttpProxy>(client =>
 {
     client.BaseAddress = new Uri("http://localhost:5173");
 });
+
+builder.Services.AddHttpClient<IVideoService, VideoService>();
 
 await builder.Build().RunAsync();
