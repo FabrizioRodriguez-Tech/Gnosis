@@ -3,21 +3,38 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Configurar Controladores y OpenAPI Nativo de .NET 10
+// ============================================================================
+// CONFIGURACIÓN DE SERVICIOS
+// ============================================================================
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
-// 2. Invocar de forma segura la inyección interna
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("PermitirBlazor", policy =>
+    {
+        policy.WithOrigins("https://localhost:44372", "http://localhost:44372")
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 builder.Services.AddProjectServices(builder.Configuration);
 
 var app = builder.Build();
 
-// 3. Habilitar la documentación interactiva en desarrollo
+// ============================================================================
+// MIDDLEWARES / PIPELINE DE PETICIONES
+// ============================================================================
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
 }
+
+app.UseCors("PermitirBlazor");
 
 app.UseAuthorization();
 app.MapControllers();

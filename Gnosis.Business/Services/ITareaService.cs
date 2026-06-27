@@ -6,7 +6,7 @@ using Gnosis.Domain.Entities;
 
 namespace Gnosis.Business.Services
 {
-    internal interface ITareaService
+    public interface ITareaService
     {
         Task<IEnumerable<TareaModel>> ObtenerTareasPrincipalesAsync();
         Task<TareaModel> CrearTareaRaizAsync(string titulo, string? descripcion);

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Gnosis.Business.Models
 {
-    internal class TareaModel
+    public class TareaModel
     {
         public Guid Id { get; set; } = Guid.NewGuid();
         public string Titulo { get; set; } = string.Empty;

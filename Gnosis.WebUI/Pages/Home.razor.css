@@ -1,0 +1,90 @@
+﻿.workspace-container {
+    max-width: 320px;
+    margin-top: 3rem;
+    margin-left: 3rem;
+}
+
+/* Bloque del Reloj */
+.timer-block {
+    text-align: left;
+    margin-bottom: 3rem;
+    width: 100%;
+}
+
+.timer-clock {
+    font-size: 4rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+    color: #ffffff;
+}
+
+.status-sub {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #cbd5e0 !important;
+}
+
+.btn-action {
+    min-width: 75px;
+}
+
+.btn-outline-secondary {
+    color: #e2e8f0;
+    border-color: #4a5568;
+}
+
+    .btn-outline-secondary:hover, .btn-outline-secondary:active {
+        background-color: #4a5568;
+        color: #ffffff;
+    }
+
+/* Bloque To-Do */
+.todo-block {
+    width: 100%;
+}
+
+.todo-title {
+    color: #ffffff !important;
+    border-bottom-color: #4a5568 !important;
+}
+
+.no-tasks-msg {
+    color: #ffffff !important;
+    font-style: italic;
+}
+
+.text-light-muted {
+    color: #ffffff !important;
+}
+
+.task-item {
+    padding: 0.6rem 0;
+    border-bottom: 1px dashed #4a5568;
+    color: #ffffff !important;
+}
+
+    .task-item:last-child {
+        border-bottom: none;
+    }
+
+::deep .task-title,
+.task-title {
+    font-weight: 500;
+    color: #ffffff !important;
+    display: inline-block;
+}
+
+::deep .task-desc,
+.task-desc {
+    font-size: 0.85rem;
+    color: #cbd5e0 !important;
+}
+
+.form-control:focus {
+    background-color: #1a202c;
+    color: #ffffff;
+    border-color: #3182ce;
+    box-shadow: none;
+}

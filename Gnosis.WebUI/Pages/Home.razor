@@ -1,272 +1,254 @@
 ﻿@page "/"
+@inject Gnosis.WebUI.TemporizadorPomodoro Pomodoro
+@inject Gnosis.WebUI.ITareaHttpProxy TareaProxy
+@using Gnosis.Business.Models
+@implements IDisposable
 
-<PageTitle>Gnosis - Entorno de Enfoque</PageTitle>
+<div class="workspace-container">
 
-<div class="gnosis-container">
-    <header class="zen-header">
-        <h1>GNOSIS</h1>
-        <p class="tagline">Optimiza tu aprendizaje autónomo en un espacio libre de distracciones.</p>
-    </header>
+    <!-- SECCIÓN SUPERIOR: TEMPORIZADOR ALINEADO A LA IZQUIERDA -->
+    <div class="timer-block">
+        <div class="status-sub text-muted mb-1">
+            @Pomodoro.ModoActual.ToString() - @Pomodoro.NombreEstadoActual
+        </div>
 
-    <div class="workspace-grid">
-        <section class="focus-card">
-            <div class="card-header">
-                <h2><i class="oi oi-timer"></i> Sesión de Enfoque</h2>
-            </div>
-            <div class="timer-display">
-                <span class="time-digits">@TiempoFormateado</span>
-                <span class="timer-status">@EstadoSesion</span>
-            </div>
-            <div class="timer-actions">
-                @if (!isTimerRunning)
+        <div class="timer-clock mb-2">@Pomodoro.TiempoFormateado</div>
+
+        <div class="btn-group btn-group-sm mb-3" role="group">
+            <button class="btn btn-outline-secondary" @onclick="() => Pomodoro.CambiarModo(ModoPomodoro.Enfoque)">Enfoque</button>
+            <button class="btn btn-outline-secondary" @onclick="() => Pomodoro.CambiarModo(ModoPomodoro.DescansoCorto)">Corto</button>
+            <button class="btn btn-outline-secondary" @onclick="() => Pomodoro.CambiarModo(ModoPomodoro.DescansoLargo)">Largo</button>
+        </div>
+
+        <div class="d-flex gap-1">
+            <button class="btn btn-sm btn-success btn-action" @onclick="Pomodoro.Iniciar">Iniciar</button>
+            <button class="btn btn-sm btn-warning btn-action text-white" @onclick="Pomodoro.Pausar">Pausar</button>
+            <button class="btn btn-sm btn-light btn-action border" @onclick="Pomodoro.Detener">Reiniciar</button>
+        </div>
+    </div>
+
+    <!-- SECCIÓN INFERIOR: LISTA TO-DO CON SUBTAREAS -->
+    <div class="todo-block">
+        <h6 class="todo-title mb-3 pb-1 border-bottom">Lista To-Do</h6>
+
+        @if (tareas == null)
+        {
+            <span class="text-light-muted small">Cargando objetivos...</span>
+        }
+        else if (!tareas.Any())
+        {
+            <p class="no-tasks-msg small m-0">No hay tareas pendientes en esta sesión.</p>
+        }
+        else
+        {
+            <div class="todo-list mb-3">
+                @foreach (var tarea in tareas)
                 {
-                    <button class="btn btn-primary" @onclick="IniciarTimer">Iniciar Enfoque</button>
-                }
-                else
-                {
-                    <button class="btn btn-warning" @onclick="PausarTimer">Pausar</button>
-                }
-                <button class="btn btn-secondary" @onclick="ReiniciarTimer">Reiniciar</button>
-            </div>
-        </section>
-
-        <section class="tasks-card">
-            <div class="card-header">
-                <h2><i class="oi oi-list"></i> Objetivos de Aprendizaje</h2>
-            </div>
-
-            <div class="input-group mb-3">
-                <input type="text" class="form-control" placeholder="¿Qué vas a aprender u optimizar hoy?..." @bind="nuevaTareaTitulo" />
-                <button class="btn btn-success" @onclick="AgregarTareaPrincipal">Agregar Objetivo</button>
-            </div>
-
-            <div class="tasks-wrapper">
-                @foreach (var tarea in TareasSimuladas)
-                {
-                    <div class="task-item-main">
-                        <div class="task-main-content">
-                            <input type="checkbox" @bind="tarea.IsCompleted" />
-                            <span class="task-title @(tarea.IsCompleted ? "completed" : "")">@tarea.Titulo</span>
+                    <div class="p-2 mb-2 border border-secondary rounded bg-dark">
+                        <!-- TAREA PRINCIPAL -->
+                        <div class="d-flex justify-content-between align-items-center task-item mb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="checkbox"
+                                       checked="@tarea.IsCompletada"
+                                       @onchange="() => CambiarEstadoTarea(tarea)"
+                                       class="form-check-input m-0 cursor-pointer" />
+                                <span class="task-title @(tarea.IsCompletada ? "text-decoration-line-through text-muted" : "text-white")">
+                                    @tarea.Titulo
+                                </span>
+                                @if (!string.IsNullOrEmpty(tarea.Descripcion))
+                                {
+                                    <span class="task-desc small text-muted"> — @tarea.Descripcion</span>
+                                }
+                            </div>
                         </div>
 
-                        <div class="subtasks-list">
-                            @foreach (var sub in tarea.Subtareas)
-                            {
-                                <div class="subtask-item">
-                                    <input type="checkbox" @bind="sub.IsCompleted" />
-                                    <span class="subtask-title @(sub.IsCompleted ? "completed" : "")">@sub.Titulo</span>
-                                </div>
-                            }
-                            <div class="input-group input-group-sm mt-2 ps-4">
-                                <input type="text" class="form-control" placeholder="Desglosar este objetivo..." @bind="tarea.NuevaSubtareaTitulo" />
-                                <button class="btn btn-outline-secondary" @onclick="() => AgregarSubtarea(tarea)">+</button>
+                        <!-- LISTA DE SUBTAREAS -->
+                        @if (tarea.Subtareas != null && tarea.Subtareas.Any())
+                        {
+                            <div class="mt-2 ps-4 border-start border-secondary">
+                                @foreach (var subtarea in tarea.Subtareas)
+                                {
+                                    <div class="d-flex align-items-center gap-2 py-1">
+                                        <input type="checkbox"
+                                               checked="@subtarea.IsCompletada"
+                                               @onchange="() => CambiarEstadoTarea(subtarea)"
+                                               class="form-check-input m-0 cursor-pointer" />
+                                        <span class="small @(subtarea.IsCompletada ? "text-decoration-line-through text-muted" : "text-light")">
+                                            @subtarea.Titulo
+                                        </span>
+                                    </div>
+                                }
                             </div>
+                        }
+
+                        <!-- FORMULARIO PARA AÑADIR SUBTAREA -->
+                        <div class="input-group input-group-sm mt-2 ps-4">
+                            <input type="text" class="form-control bg-dark text-white border-secondary text-xs"
+                                   placeholder="Añadir subtarea..."
+                                   @bind="NuevosTitulosSubtareas[tarea.Id]"
+                                   @onkeyup="@(e => VerificarIntroSubtarea(e, tarea))" />
+                            <button class="btn btn-outline-secondary" type="button" @onclick="() => AgregarSubtarea(tarea)">+</button>
                         </div>
                     </div>
                 }
             </div>
-        </section>
+        }
+
+        <!-- FORMULARIO PARA AGREGAR TAREAS PRINCIPALES -->
+        <div class="input-group input-group-sm mt-3">
+            <input type="text" class="form-control bg-dark text-white border-secondary"
+                   placeholder="Nuevo objetivo principal..." @bind="nuevaTareaTitulo" @bind:event="oninput" @onkeyup="HandleKeyUp" />
+            <button class="btn btn-primary" type="button" @onclick="CrearNuevaTarea">Agregar</button>
+        </div>
     </div>
 </div>
 
-<style>
-    :root {
-        --bg-zen: #f8fafc;
-        --text-main: #0f172a;
-        --accent-blue: #005088;
-        --border-color: #e2e8f0;
-    }
-
-    .gnosis-container {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 40px 20px;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-
-    .zen-header {
-        text-align: center;
-        margin-bottom: 40px;
-    }
-
-    .zen-header h1 {
-        font-size: 2.5rem;
-        letter-spacing: 4px;
-        color: var(--accent-blue);
-        margin: 0;
-        font-weight: 700;
-    }
-
-    .tagline {
-        color: #64748b;
-        font-size: 1.1rem;
-        margin-top: 8px;
-    }
-
-    .workspace-grid {
-        display: grid;
-        grid-template-columns: 1fr 1.5fr;
-        gap: 30px;
-    }
-
-    .focus-card, .tasks-card {
-        background: #ffffff;
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
-        padding: 30px;
-        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
-    }
-
-    .card-header h2 {
-        font-size: 1.3rem;
-        color: var(--text-main);
-        margin: 0 0 20px 0;
-        font-weight: 600;
-    }
-
-    /* ESTILOS TIMER */
-    .timer-display {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        margin: 40px 0;
-    }
-
-    .time-digits {
-        font-size: 4.5rem;
-        font-weight: 700;
-        color: var(--text-main);
-        font-variant-numeric: tabular-nums;
-    }
-
-    .timer-status {
-        color: #64748b;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-        font-size: 0.9rem;
-        margin-top: 10px;
-    }
-
-    .timer-actions {
-        display: flex;
-        justify-content: center;
-        gap: 15px;
-    }
-
-    /* ESTILOS TAREAS */
-    .tasks-wrapper {
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-        margin-top: 20px;
-    }
-
-    .task-item-main {
-        border-left: 3px solid var(--accent-blue);
-        padding-left: 15px;
-        margin-bottom: 10px;
-    }
-
-    .task-main-content {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 1.1rem;
-        font-weight: 500;
-    }
-
-    .subtasks-list {
-        margin-top: 10px;
-        padding-left: 20px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .subtask-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 0.95rem;
-        color: #475569;
-    }
-
-    .completed {
-        text-decoration: line-through;
-        color: #94a3b8;
-    }
-</style>
-
 @code {
-    // --- LÓGICA DE TIMER SIMULADO ---
-    private string TiempoFormateado = "25:00";
-    private string EstadoSesion = "Listo para concentrarse";
-    private bool isTimerRunning = false;
+    private List<TareaModel>? tareas;
+    private string nuevaTareaTitulo = string.Empty;
 
-    private void IniciarTimer()
+    // Diccionario para manejar el texto de la subtarea por cada Id de tarea principal
+    private Dictionary<Guid, string> NuevosTitulosSubtareas { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        isTimerRunning = true;
-        EstadoSesion = "Bloque de Enfoque Activo";
-        TiempoFormateado = "24:59"; // Simulación visual inicial
+        Pomodoro.OnTick += ActualizarPantalla;
+        await CargarTareas();
     }
 
-    private void PausarTimer()
+    private async Task CargarTareas()
     {
-        isTimerRunning = false;
-        EstadoSesion = "En Pausa";
-    }
-
-    private void ReiniciarTimer()
-    {
-        isTimerRunning = false;
-        EstadoSesion = "Listo para concentrarse";
-        TiempoFormateado = "25:00";
-    }
-
-    // --- LÓGICA DE TAREAS SIMULADAS ---
-    private string nuevaTareaTitulo = "";
-
-    public class TareaVistaSimulada
-    {
-        public string Titulo { get; set; } = "";
-        public bool IsCompleted { get; set; }
-        public List<SubtareaVistaSimulada> Subtareas { get; set; } = new();
-        public string NuevaSubtareaTitulo { get; set; } = "";
-    }
-
-    public class SubtareaVistaSimulada
-    {
-        public string Titulo { get; set; } = "";
-        public bool IsCompleted { get; set; }
-    }
-
-    private List<TareaVistaSimulada> TareasSimuladas = new()
-    {
-        new TareaVistaSimulada
+        try
         {
-            Titulo = "Diseño Conceptual de Gnosis",
-            Subtareas = new() {
-                new SubtareaVistaSimulada { Titulo = "Estructurar ADR-02 para N-Layer", IsCompleted = true },
-                new SubtareaVistaSimulada { Titulo = "Definir agregados del dominio", IsCompleted = false }
-            }
+            var resultado = await TareaProxy.ObtenerTodasAsync();
+            tareas = resultado?.ToList() ?? new List<TareaModel>();
+
+            // Inicializar el diccionario para evitar excepciones de clave no encontrada
+            NuevosTitulosSubtareas = tareas.ToDictionary(t => t.Id, t => string.Empty);
         }
-    };
-
-    private void AgregarTareaPrincipal()
-    {
-        if (!string.IsNullOrWhiteSpace(nuevaTareaTitulo))
+        catch (Exception ex)
         {
-            TareasSimuladas.Add(new TareaVistaSimulada { Titulo = nuevaTareaTitulo });
-            nuevaTareaTitulo = "";
+            Console.WriteLine($"Error al cargar tareas de la API: {ex.Message}");
+            tareas = new List<TareaModel>();
         }
     }
 
-    private void AgregarSubtarea(TareaVistaSimulada tareaPadre)
+    private async Task CrearNuevaTarea()
     {
-        if (!string.IsNullOrWhiteSpace(tareaPadre.NuevaSubtareaTitulo))
+        var tituloLimpio = nuevaTareaTitulo?.Trim();
+
+        if (string.IsNullOrWhiteSpace(tituloLimpio))
         {
-            tareaPadre.Subtareas.Add(new SubtareaVistaSimulada { Titulo = tareaPadre.NuevaSubtareaTitulo });
-            tareaPadre.NuevaSubtareaTitulo = "";
+            Console.WriteLine("El título está vacío, ignorando creación.");
+            return;
         }
+
+        var nueva = new TareaModel
+        {
+            Id = Guid.NewGuid(),
+            Titulo = tituloLimpio,
+            IsCompletada = false,
+            FechaCreacion = DateTime.UtcNow
+        };
+
+        try
+        {
+            nuevaTareaTitulo = string.Empty;
+            tareas ??= new List<TareaModel>();
+
+            tareas.Add(nueva);
+            NuevosTitulosSubtareas[nueva.Id] = string.Empty;
+            StateHasChanged();
+
+            await TareaProxy.CrearTareaAsync(nueva);
+            Console.WriteLine("Tarea guardada exitosamente en el backend.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error crítico al persistir la tarea en la API: {ex.Message}");
+            await CargarTareas();
+            StateHasChanged();
+        }
+    }
+
+    private async Task AgregarSubtarea(TareaModel padre)
+    {
+        if (!NuevosTitulosSubtareas.TryGetValue(padre.Id, out var tituloSubtarea) || string.IsNullOrWhiteSpace(tituloSubtarea))
+            return;
+
+        var subLimpio = tituloSubtarea.Trim();
+
+        var nuevaSubtarea = new TareaModel
+        {
+            Id = Guid.NewGuid(),
+            Titulo = subLimpio,
+            IsCompletada = false,
+            FechaCreacion = DateTime.UtcNow,
+            TareaPadreId = padre.Id
+        };
+
+        try
+        {
+            // Limpieza visual inmediata
+            NuevosTitulosSubtareas[padre.Id] = string.Empty;
+
+            padre.Subtareas ??= new List<TareaModel>();
+            padre.Subtareas.Add(nuevaSubtarea);
+            StateHasChanged();
+
+            // Enviamos la subtarea a la API a través de tu proxy (usa el método que crees para subtareas o el general si soporta herencia)
+            await TareaProxy.CrearTareaAsync(nuevaSubtarea);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al guardar subtarea: {ex.Message}");
+            await CargarTareas();
+            StateHasChanged();
+        }
+    }
+
+    private async Task CambiarEstadoTarea(TareaModel tarea)
+    {
+        tarea.IsCompletada = !tarea.IsCompletada;
+        StateHasChanged();
+
+        try
+        {
+            // Envía la actualización a la API usando tu proxy existente
+            await TareaProxy.ActualizarEstadoTareaAsync(tarea.Id, tarea.IsCompletada);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al cambiar estado de la tarea: {ex.Message}");
+            // Si el backend falla, revertimos el estado localmente
+            tarea.IsCompletada = !tarea.IsCompletada;
+            StateHasChanged();
+        }
+    }
+
+    private async Task VerificarIntroSubtarea(KeyboardEventArgs e, TareaModel padre)
+    {
+        if (e.Key == "Enter")
+        {
+            await AgregarSubtarea(padre);
+        }
+    }
+
+    private async Task HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await CrearNuevaTarea();
+        }
+    }
+
+    private void ActualizarPantalla()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Pomodoro.OnTick -= ActualizarPantalla;
     }
 }

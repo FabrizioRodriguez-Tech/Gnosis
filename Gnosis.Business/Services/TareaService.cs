@@ -62,7 +62,6 @@ internal class TareaService(IRepository<Tarea> tareaRepository) : ITareaService
         };
     }
 
-    // 4. Cambiar estado (Dejado limpio para evitar errores de compilación)
     public async Task CambiarEstadoCompletadoAsync(Guid tareaId, bool completada)
     {
         await Task.CompletedTask;

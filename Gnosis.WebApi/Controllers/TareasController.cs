@@ -10,8 +10,7 @@ public class TareasController : ControllerBase
 {
     private readonly ITareaService _tareaService;
 
-    // Marcamos el constructor como internal para poder recibir la interfaz internal
-    internal TareasController(ITareaService tareaService)
+    public TareasController(ITareaService tareaService)
     {
         _tareaService = tareaService;
     }
