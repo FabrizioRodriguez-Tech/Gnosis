@@ -12,5 +12,6 @@ namespace Gnosis.Business.Services
         Task<TareaModel> CrearTareaRaizAsync(string titulo, string? descripcion);
         Task<TareaModel> DesglosarTareaAsync(Guid tareaPadreId, string tituloSubtarea);
         Task CambiarEstadoCompletadoAsync(Guid tareaId, bool completada);
+        Task<bool> ActualizarEstadoTareaAsync(Guid id, bool isCompletada);
     }
 }

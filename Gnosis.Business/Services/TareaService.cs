@@ -24,7 +24,6 @@ internal class TareaService(IRepository<Tarea> tareaRepository) : ITareaService
         });
     }
 
-    // 2. Crear tarea raíz
     public async Task<TareaModel> CrearTareaRaizAsync(string titulo, string? descripcion)
     {
         var nuevaTarea = new Tarea
@@ -44,7 +43,6 @@ internal class TareaService(IRepository<Tarea> tareaRepository) : ITareaService
         };
     }
 
-    // 3. Desglosar sub-tarea
     public async Task<TareaModel> DesglosarTareaAsync(Guid tareaPadreId, string tituloSubtarea)
     {
         var subtarea = new Tarea
@@ -65,5 +63,19 @@ internal class TareaService(IRepository<Tarea> tareaRepository) : ITareaService
     public async Task CambiarEstadoCompletadoAsync(Guid tareaId, bool completada)
     {
         await Task.CompletedTask;
+    }
+
+    public async Task<bool> ActualizarEstadoTareaAsync(Guid id, bool isCompletada)
+    {
+        // Buscamos la tarea usando el método que sí existe en tu interfaz
+        var tarea = await tareaRepository.GetByIdAsync(id);
+        if (tarea == null) return false;
+
+        tarea.IsCompletada = isCompletada;
+
+        // Corregido: usamos ActualizarAsync como está definido en tu IRepository
+        await tareaRepository.ActualizarAsync(tarea);
+
+        return true;
     }
 }
