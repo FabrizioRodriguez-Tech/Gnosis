@@ -11,9 +11,10 @@ namespace Gnosis.WebUI
     {
         Task<IEnumerable<TareaModel>> ObtenerTodasAsync();
         Task<TareaModel> CrearTareaAsync(TareaModel nuevaTarea);
-
-        // INTERFAZ: Registramos el método para actualizar el estado
         Task ActualizarEstadoTareaAsync(Guid id, bool isCompletada);
+
+        // NUEVO: Registramos la acción de borrado en la interfaz
+        Task EliminarTareaAsync(Guid id);
     }
 
     public class TareaHttpProxy : ITareaHttpProxy
@@ -38,10 +39,16 @@ namespace Gnosis.WebUI
             return await respuesta.Content.ReadFromJsonAsync<TareaModel>() ?? nuevaTarea;
         }
 
-        // IMPLEMENTACIÓN: Enviamos el cambio mediante un PUT hacia la API
         public async Task ActualizarEstadoTareaAsync(Guid id, bool isCompletada)
         {
             var respuesta = await _httpClient.PutAsJsonAsync($"api/Tareas/{id}/estado", isCompletada);
+            respuesta.EnsureSuccessStatusCode();
+        }
+
+        // NUEVO: Implementamos la llamada DELETE hacia el controlador de la API
+        public async Task EliminarTareaAsync(Guid id)
+        {
+            var respuesta = await _httpClient.DeleteAsync($"api/Tareas/{id}");
             respuesta.EnsureSuccessStatusCode();
         }
     }

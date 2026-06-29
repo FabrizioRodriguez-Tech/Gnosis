@@ -1,0 +1,84 @@
+﻿@* Gnosis.WebUI/Components/SelectorFondos.razor *@
+@inject Gnosis.WebUI.EstadoFondoActual EstadoFondo
+@inject Gnosis.WebUI.FondoPersistenceService Persistencia
+@using Gnosis.Business.Models
+@implements IDisposable
+
+<div class="selector-fondos-wrapper">
+    <button class="selector-flecha" @onclick="IrAnterior" title="Fondo anterior">‹</button>
+
+    <div class="selector-track">
+        @for (int i = 0; i < CatalogoFondos.Disponibles.Count; i++)
+        {
+            var index = i;
+            var fondo = CatalogoFondos.Disponibles[index];
+            var distancia = Math.Abs(index - indiceActivo);
+            var esActivo = index == indiceActivo;
+
+            <div class="selector-miniatura @(esActivo ? "activa" : "") distancia-@(Math.Min(distancia, 3))"
+                 style="background-image: url('@fondo.ThumbnailUrl'); background-color: @fondo.ColorPlaceholder;"
+                 @onclick="() => SeleccionarFondo(index)"
+                 title="@fondo.Nombre">
+            </div>
+        }
+    </div>
+
+    <button class="selector-flecha" @onclick="IrSiguiente" title="Siguiente fondo">›</button>
+</div>
+
+<div class="selector-fondos-label">@CatalogoFondos.Disponibles[indiceActivo].Nombre</div>
+
+@code {
+    private int indiceActivo = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var indiceDelEstadoActual = CatalogoFondos.Disponibles.IndexOf(EstadoFondo.FondoActivo);
+        if (indiceDelEstadoActual >= 0)
+        {
+            indiceActivo = indiceDelEstadoActual;
+        }
+
+        var guardadoId = await Persistencia.ObtenerFondoGuardadoAsync();
+
+        if (!string.IsNullOrEmpty(guardadoId))
+        {
+            var encontrado = CatalogoFondos.BuscarPorId(guardadoId);
+            if (encontrado != null)
+            {
+                indiceActivo = CatalogoFondos.Disponibles.IndexOf(encontrado);
+                EstadoFondo.EstablecerFondo(encontrado);
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task SeleccionarFondo(int index)
+    {
+        if (index < 0 || index >= CatalogoFondos.Disponibles.Count) return;
+
+        indiceActivo = index;
+        var fondo = CatalogoFondos.Disponibles[index];
+
+        EstadoFondo.EstablecerFondo(fondo);
+        await Persistencia.GuardarFondoAsync(fondo.Id);
+
+        StateHasChanged();
+    }
+
+    private async Task IrAnterior()
+    {
+        if (indiceActivo > 0) await SeleccionarFondo(indiceActivo - 1);
+    }
+
+    private async Task IrSiguiente()
+    {
+        if (indiceActivo < CatalogoFondos.Disponibles.Count - 1) await SeleccionarFondo(indiceActivo + 1);
+    }
+
+    public void Dispose()
+    {
+        // El estado (EstadoFondoActual) es scoped y vive más allá de este componente; no se limpia aquí.
+    }
+}

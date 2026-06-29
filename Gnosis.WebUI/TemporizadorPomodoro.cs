@@ -1,5 +1,4 @@
 ﻿using System;
-
 namespace Gnosis.WebUI
 {
     // Modos de sesión disponibles para el Pomodoro
@@ -24,7 +23,7 @@ namespace Gnosis.WebUI
     {
         public void Iniciar(TemporizadorPomodoro contexto) => contexto.CambiarEstado(new EstadoCorriendo());
         public void Pausar(TemporizadorPomodoro contexto) { }
-        public void Detener(TemporizadorPomodoro contexto) { }
+        public void Detener(TemporizadorPomodoro contexto) => contexto.RestablecerTiempoPorModo();
         public void Tick(TemporizadorPomodoro contexto) { }
     }
 
@@ -95,6 +94,11 @@ namespace Gnosis.WebUI
         private readonly System.Timers.Timer _internalTimer;
         private ModoPomodoro _modoActual = ModoPomodoro.Enfoque;
 
+        // [AÑADIDO] Propiedades para almacenar los tiempos configurados por el usuario
+        public int DuracionEnfoque { get; set; } = 25;
+        public int DuracionDescansoCorto { get; set; } = 5;
+        public int DuracionDescansoLargo { get; set; } = 15;
+
         public int Minutos { get; set; } = 25;
         public int Segundos { get; set; } = 0;
 
@@ -118,6 +122,9 @@ namespace Gnosis.WebUI
         {
             _internalTimer = new System.Timers.Timer(1000);
             _internalTimer.Elapsed += (s, e) => EjecutarTick();
+
+            // Inicializa los minutos con la duración de Enfoque configurada
+            Minutos = DuracionEnfoque;
         }
 
         public void CambiarEstado(ITemporizadorEstado nuevoEstado)
@@ -135,18 +142,20 @@ namespace Gnosis.WebUI
         public void CambiarModo(ModoPomodoro nuevoModo)
         {
             _modoActual = nuevoModo;
-            Detener(); // Fuerza al estado Detenido y setea los tiempos correctos
+            RestablecerTiempoPorModo();
+            Detener();
             OnTick?.Invoke();
         }
 
+        // [CORREGIDO] Ahora lee dinámicamente de las propiedades configurables
         public void RestablecerTiempoPorModo()
         {
             Minutos = _modoActual switch
             {
-                ModoPomodoro.Enfoque => 25,
-                ModoPomodoro.DescansoCorto => 5,
-                ModoPomodoro.DescansoLargo => 15,
-                _ => 25
+                ModoPomodoro.Enfoque => DuracionEnfoque,
+                ModoPomodoro.DescansoCorto => DuracionDescansoCorto,
+                ModoPomodoro.DescansoLargo => DuracionDescansoLargo,
+                _ => DuracionEnfoque
             };
             Segundos = 0;
         }

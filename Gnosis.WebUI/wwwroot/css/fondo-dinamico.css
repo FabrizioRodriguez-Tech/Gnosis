@@ -1,0 +1,112 @@
+﻿/* Ubicación sugerida: Gnosis.WebUI/wwwroot/css/fondo-dinamico.css */
+/* Recuerda referenciarlo en index.html: <link rel="stylesheet" href="css/fondo-dinamico.css" /> */
+
+.video-bg-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    z-index: -1;
+    background: #1e1e1e;
+    pointer-events: none;
+}
+
+#ytBackground {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100vw;
+    height: 56.25vw;
+    min-height: 100vh;
+    min-width: 177.78vh;
+    pointer-events: none;
+    border: none;
+}
+
+.selector-fondos-wrapper {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(20, 20, 24, 0.55);
+    backdrop-filter: blur(6px);
+    border-radius: 999px;
+    padding: 8px 14px;
+}
+
+.selector-flecha {
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    color: #fff;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+    .selector-flecha:hover {
+        background: rgba(255, 255, 255, 0.18);
+    }
+
+.selector-track {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.selector-miniatura {
+    width: 32px;
+    height: 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    opacity: 0.35;
+    transform: scale(0.85);
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+    .selector-miniatura.activa {
+        width: 56px;
+        height: 34px;
+        opacity: 1;
+        transform: scale(1);
+        border: 2px solid #ffffff;
+    }
+
+    .selector-miniatura.distancia-1 {
+        opacity: 0.6;
+        transform: scale(0.92);
+    }
+
+    .selector-miniatura.distancia-2 {
+        opacity: 0.4;
+    }
+
+    .selector-miniatura.distancia-3 {
+        opacity: 0.25;
+    }
+
+.selector-fondos-label {
+    position: fixed;
+    top: 62px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    color: #ffffff;
+    font-size: 12px;
+    opacity: 0.8;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
