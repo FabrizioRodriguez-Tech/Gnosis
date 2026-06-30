@@ -24,12 +24,34 @@
         <div class="loading-progress-text"></div>
     </div>
 
-    <div id="blazor-error-ui">
-        An unhandled error has occurred.
-        <a href="." class="reload">Reload</a>
-        <span class="dismiss">🗙</span>
-    </div>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+    <script>
+        window.gnosis = {
+            iniciarArrastre: function (panelId, dotnetRef, offsetX, offsetY) {
+                const el = document.getElementById(panelId);
+                if (!el) return;
+
+                el.style.transition = 'none';
+
+                function onMove(e) {
+                    el.style.left = (e.clientX - offsetX) + 'px';
+                    el.style.top = (e.clientY - offsetY) + 'px';
+                    el.style.right = 'auto';
+                }
+
+                function onUp() {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    el.style.transition = '';
+                    dotnetRef.invokeMethodAsync('ActualizarPosicion', panelId,
+                        parseFloat(el.style.left), parseFloat(el.style.top));
+                }
+
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            }
+        };
+    </script>
 </body>
 
 </html>
