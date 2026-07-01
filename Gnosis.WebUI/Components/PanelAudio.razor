@@ -1,0 +1,166 @@
+﻿@inject IJSRuntime JS
+@implements IDisposable
+
+<!-- NODO DE AUDIO INVISIBLE EXIGIDO POR LA API DE YOUTUBE -->
+<div id="ytAudioPlayerNode" aria-hidden="true"></div>
+
+<div id="panel-audio"
+     class="panel-flotante @(audioMinimizado ? "panel-minimizado borde-" + BordeMinimizado(audioX) : "")"
+     style="@EstiloPanelMinimizado(audioMinimizado, audioX, audioY)">
+
+    <div class="panel-header" @onmousedown="OnMouseDownAudio">
+        <span class="panel-titulo">Ambiente Musical</span>
+        <button class="btn-minimizar-panel" @onclick="ToggleAudio" @onclick:stopPropagation="true">
+            @if (audioMinimizado)
+            {
+                <!-- Icono SVG de Nota Musical para el estado minimizado -->
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="opacity: 0.9;">
+                    <path d="M9 13c0 1.105-1.12 2-2.5 2S4 14.105 4 13s1.12-2 2.5-2 2.5.895 2.5 2z" />
+                    <path fill-rule="evenodd" d="M9 3v10H8V3h1z" />
+                    <path d="M8 2.82a1 1 0 0 1 .804-.98l3-.6A1 1 0 0 1 13 2.22V3.5a1 1 0 0 1-.804.98l-3 .6A1 1 0 0 1 8 4.08V2.82z" />
+                </svg>
+            }
+            else
+            {
+                <span>&#x25BE;</span>
+            }
+        </button>
+    </div>
+
+    @if (!audioMinimizado)
+    {
+        <div class="panel-contenido">
+            <div class="audio-player-container">
+
+                <!-- Selector de Ambientes -->
+                <select class="audio-select-ambient" @onchange="OnCambiarAmbiente">
+                    @foreach (var ambiente in listaAmbientes)
+                    {
+                        <option value="@ambiente.VideoId">@ambiente.Nombre</option>
+                    }
+                </select>
+
+                <!-- Fila de Controles Play / Pause -->
+                <div class="audio-controls">
+                    @if (!isPlaying)
+                    {
+                        <button class="btn-audio-action" @onclick="Play">Play</button>
+                    }
+                    else
+                    {
+                        <button class="btn-audio-action" @onclick="Pause">Pause</button>
+                    }
+                </div>
+
+                <!-- Control de Volumen -->
+                <div class="audio-volume-row">
+                    <label>Vol</label>
+                    <input type="range" class="audio-slider" min="0" max="100"
+                           value="@volumen" @oninput="OnVolumenChanged" />
+                    <span style="font-size: 0.75rem; font-variant-numeric: tabular-nums; width: 24px; text-align: right; opacity: 0.8;">@volumen</span>
+                </div>
+
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private DotNetObjectReference<PanelAudio>? _dotnetRef;
+
+    private bool audioMinimizado = false;
+    private bool isPlaying = false;
+    private int volumen = 50;
+
+    // Posición inicial por defecto para el panel de audio
+    private double audioX = 40;
+    private double audioY = 320;
+
+    // Modelo sencillo inline para las opciones
+    private class AmbienteMusical
+    {
+        public string Nombre { get; set; } = string.Empty;
+        public string VideoId { get; set; } = string.Empty;
+    }
+
+    // Lista fija de transmisiones de estudio populares
+    private readonly List<AmbienteMusical> listaAmbientes = new()
+    {
+        new AmbienteMusical { Nombre = "Lofi Girl (Estudio)", VideoId = "jfKfPfyJRdk" },
+        new AmbienteMusical { Nombre = "Lluvia Relajante", VideoId = "mPZkdNFkNps" },
+        new AmbienteMusical { Nombre = "Synthwave Chill", VideoId = "4xDzrJKXOOY" },
+        new AmbienteMusical { Nombre = "Ondas Alfa (Foco)", VideoId = "WPni755-Kgg" }
+    };
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotnetRef = DotNetObjectReference.Create(this);
+        }
+    }
+
+    [JSInvokable]
+    public void ActualizarPosicion(string panelId, double x, double y)
+    {
+        if (panelId == "panel-audio")
+        {
+            audioX = x;
+            audioY = y;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnMouseDownAudio(MouseEventArgs e)
+    {
+        if (audioMinimizado) return;
+        await JS.InvokeVoidAsync("gnosis.iniciarArrastre", "panel-audio", _dotnetRef,
+            e.ClientX - audioX, e.ClientY - audioY);
+    }
+
+    private string BordeMinimizado(double x) => x < 700 ? "izquierdo" : "derecho";
+
+    private string EstiloPanelMinimizado(bool minimizado, double x, double y)
+    {
+        if (minimizado) return $"top: {y}px;";
+        return $"left: {x}px; top: {y}px;";
+    }
+
+    private void ToggleAudio() => audioMinimizado = !audioMinimizado;
+
+    private async Task Play()
+    {
+        isPlaying = true;
+        await JS.InvokeVoidAsync("gnosis.playAudio");
+    }
+
+    private async Task Pause()
+    {
+        isPlaying = false;
+        await JS.InvokeVoidAsync("gnosis.pauseAudio");
+    }
+
+    private async Task OnVolumenChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int nuevoVol))
+        {
+            volumen = nuevoVol;
+            await JS.InvokeVoidAsync("gnosis.setAudioVolumen", volumen);
+        }
+    }
+
+    private async Task OnCambiarAmbiente(ChangeEventArgs e)
+    {
+        var videoId = e.Value?.ToString();
+        if (!string.IsNullOrEmpty(videoId))
+        {
+            isPlaying = true;
+            await JS.InvokeVoidAsync("gnosis.cambiarAudioVideo", videoId);
+        }
+    }
+
+    public void Dispose()
+    {
+        _dotnetRef?.Dispose();
+    }
+}

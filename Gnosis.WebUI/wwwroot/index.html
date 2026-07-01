@@ -27,31 +27,114 @@
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
     <script>
         window.gnosis = {
-            iniciarArrastre: function (panelId, dotnetRef, offsetX, offsetY) {
+            iniciarArrastre: function (panelId, dotnetRef, offsetX, offsetY, minimizado) {
                 const el = document.getElementById(panelId);
                 if (!el) return;
 
                 el.style.transition = 'none';
 
                 function onMove(e) {
-                    el.style.left = (e.clientX - offsetX) + 'px';
-                    el.style.top = (e.clientY - offsetY) + 'px';
-                    el.style.right = 'auto';
+                    if (minimizado) {
+                        const mitad = window.innerWidth / 2;
+                        el.style.top = (e.clientY - offsetY) + 'px';
+
+                        if (e.clientX < mitad) {
+                            el.style.left = '0px';
+                            el.style.right = 'auto';
+                        } else {
+                            el.style.right = '0px';
+                            el.style.left = 'auto';
+                        }
+                    } else {
+                        el.style.left = (e.clientX - offsetX) + 'px';
+                        el.style.top = (e.clientY - offsetY) + 'px';
+                        el.style.right = 'auto';
+                    }
                 }
 
                 function onUp() {
                     document.removeEventListener('mousemove', onMove);
                     document.removeEventListener('mouseup', onUp);
                     el.style.transition = '';
-                    dotnetRef.invokeMethodAsync('ActualizarPosicion', panelId,
-                        parseFloat(el.style.left), parseFloat(el.style.top));
+
+                    const finalX = el.style.left === 'auto'
+                        ? window.innerWidth - el.offsetWidth
+                        : parseFloat(el.style.left);
+                    const finalY = parseFloat(el.style.top);
+
+                    dotnetRef.invokeMethodAsync('ActualizarPosicion', panelId, finalX, finalY);
                 }
 
                 document.addEventListener('mousemove', onMove);
                 document.addEventListener('mouseup', onUp);
+            },
+
+            reproductorAudio: {
+                player: null,
+                listo: false,
+
+                cargar: function (videoId) {
+                    if (window.gnosis.reproductorAudio.player && window.gnosis.reproductorAudio.listo) {
+                        window.gnosis.reproductorAudio.player.loadVideoById(videoId);
+                        window.gnosis.reproductorAudio.player.playVideo();
+                        return;
+                    }
+
+                    if (window.gnosis.reproductorAudio.player) {
+                        window.gnosis.reproductorAudio.player.destroy();
+                        window.gnosis.reproductorAudio.player = null;
+                    }
+
+                    window.gnosis.reproductorAudio.player = new YT.Player('yt-audio-player', {
+                        height: '1',
+                        width: '1',
+                        videoId: videoId,
+                        playerVars: {
+                            autoplay: 1,
+                            controls: 0,
+                            loop: 1,
+                            playlist: videoId,
+                            modestbranding: 1,
+                            rel: 0
+                        },
+                        events: {
+                            onReady: function (e) {
+                                window.gnosis.reproductorAudio.listo = true;
+                                e.target.setVolume(80);
+                                e.target.playVideo();
+                            }
+                        }
+                    });
+                },
+
+                play: function () {
+                    if (window.gnosis.reproductorAudio.player && window.gnosis.reproductorAudio.listo)
+                        window.gnosis.reproductorAudio.player.playVideo();
+                },
+
+                pause: function () {
+                    if (window.gnosis.reproductorAudio.player && window.gnosis.reproductorAudio.listo)
+                        window.gnosis.reproductorAudio.player.pauseVideo();
+                },
+
+                setVolume: function (vol) {
+                    if (window.gnosis.reproductorAudio.player && window.gnosis.reproductorAudio.listo)
+                        window.gnosis.reproductorAudio.player.setVolume(vol);
+                },
+
+                estaReproduciendo: function () {
+                    if (!window.gnosis.reproductorAudio.player || !window.gnosis.reproductorAudio.listo)
+                        return false;
+                    return window.gnosis.reproductorAudio.player.getPlayerState() === 1;
+                }
             }
         };
+
+        window.onYouTubeIframeAPIReady = function () { };
     </script>
+
+    <!-- API de YouTube para el reproductor de audio -->
+    <script src="https://www.youtube.com/iframe_api"></script>
 </body>
 
 </html>
