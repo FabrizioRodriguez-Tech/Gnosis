@@ -56,6 +56,56 @@ C4Container
 
 ---
 
+### Nivel 3 — Componentes
+
+> **Para quién es:** el desarrollador que va a modificar o extender el sistema.
+> **Pregunta que responde:** ¿Qué hay dentro de cada contenedor y cómo se organizan internamente?
+
+#### Gnosis.WebUI
+
+```mermaid
+C4Component
+    title Gnosis.WebUI — Componentes internos (Nivel 3)
+
+    Container_Boundary(webui, "Gnosis.WebUI") {
+        Component(home, "Home.razor", "Blazor Page", "Página principal. Orquesta todos los paneles flotantes y la barra de IA")
+        Component(selector, "SelectorFondos.razor", "Blazor Component", "Carrusel de fondos de video. Gestiona selección, persistencia en localStorage y miniaturas de YouTube")
+        Component(pomodoro, "TemporizadorPomodoro.cs", "Singleton Service", "Lógica del temporizador con patrón State (Detenido, Corriendo, Pausado). Emite eventos OnTick")
+        Component(tareaproxy, "TareaHttpProxy.cs", "Scoped Service", "Proxy HTTP hacia Gnosis.WebApi. CRUD de tareas y subtareas")
+        Component(iaservice, "GnosisIAService.cs", "Scoped Service", "Llama al endpoint api/IA/consultar. Convierte la respuesta en TareaModel o texto según el modo")
+        Component(estadofondo, "EstadoFondoActual.cs", "Singleton Service", "Estado compartido del fondo activo. Notifica cambios via evento OnCambio")
+        Component(fondopersistence, "FondoPersistenceService.cs", "Scoped Service", "Persiste el fondo elegido en localStorage via JS Interop")
+    }
+
+    Rel(home, pomodoro, "Suscribe a OnTick")
+    Rel(home, estadofondo, "Suscribe a OnCambio")
+    Rel(home, tareaproxy, "CRUD de tareas")
+    Rel(home, iaservice, "Envía mensajes del chat")
+    Rel(selector, estadofondo, "Actualiza fondo activo")
+    Rel(selector, fondopersistence, "Lee y guarda en localStorage")
+    Rel(iaservice, tareaproxy, "Crea tareas generadas por IA")
+```
+
+#### Gnosis.WebApi
+
+```mermaid
+C4Component
+    title Gnosis.WebApi — Componentes internos (Nivel 3)
+
+    Container_Boundary(webapi, "Gnosis.WebApi") {
+        Component(tareasctrl, "TareasController", "ASP.NET Controller", "CRUD completo de tareas y subtareas. GET, POST, PUT, DELETE en /api/Tareas")
+        Component(iactrl, "IAController", "ASP.NET Controller", "Recibe mensajes del chat con historial, construye el prompt para Groq y parsea la respuesta JSON estructurada")
+        Component(repos, "Repositories", "EF Core / Infrastructure", "Acceso a datos via patrón Repository. Implementaciones en Gnosis.Infrastructure")
+        Component(dbcontext, "GnosisDbContext", "EF Core DbContext", "Mapeo de entidades a tablas SQL Server")
+    }
+
+    Rel(tareasctrl, repos, "Delega operaciones")
+    Rel(repos, dbcontext, "Usa")
+    Rel(iactrl, repos, "Lee tareas si necesita contexto")
+```
+
+---
+
 ## Stack tecnológico
 
 | Capa | Tecnología |
