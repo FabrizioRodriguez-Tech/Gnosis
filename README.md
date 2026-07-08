@@ -27,6 +27,32 @@ C4Context
     Rel(gnosis, groq, "Consulta IA", "HTTPS / REST")
 ```
 
+---
+
+### Nivel 2 — Contenedores
+
+> **Para quién es:** desarrolladores que se incorporan al proyecto o revisores técnicos.
+> **Pregunta que responde:** ¿Cuáles son las piezas técnicas del sistema y cómo se comunican entre sí?
+
+```mermaid
+C4Container
+    title Gnosis — Diagrama de Contenedores (Nivel 2)
+
+    Person(usuario, "Usuario", "Accede desde el navegador")
+
+    Container(webui, "Gnosis.WebUI", "Blazor WebAssembly", "Interfaz de usuario. Renderiza los paneles flotantes, el carrusel de fondos, la barra de IA y gestiona el estado local")
+    Container(webapi, "Gnosis.WebApi", "ASP.NET Core", "API REST. Expone endpoints para CRUD de tareas y proxy hacia Groq API")
+    ContainerDb(db, "Base de datos", "SQL Server / EF Core", "Almacena las tareas y subtareas del usuario")
+
+    System_Ext(youtube, "YouTube", "Videos de fondo y audio")
+    System_Ext(groq, "Groq API", "LLM Llama 70B para asistencia")
+
+    Rel(usuario, webui, "Interactúa", "HTTPS")
+    Rel(webui, webapi, "Llama endpoints", "HTTP / JSON — puerto 5173")
+    Rel(webui, youtube, "Embebe contenido", "iframe")
+    Rel(webapi, db, "Lee y escribe", "EF Core")
+    Rel(webapi, groq, "Envía consultas", "HTTPS / Bearer token")
+```
 
 ---
 
