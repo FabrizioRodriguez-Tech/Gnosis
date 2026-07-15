@@ -17,4 +17,9 @@ builder.Services.AddHttpClient<ITareaHttpProxy, TareaHttpProxy>(client =>
     client.BaseAddress = new Uri("http://localhost:5173");
 });
 
+builder.Services.AddHttpClient<GnosisIAService>(client =>
+{
+    client.BaseAddress = new Uri("http://localhost:5173");
+});
+
 await builder.Build().RunAsync();

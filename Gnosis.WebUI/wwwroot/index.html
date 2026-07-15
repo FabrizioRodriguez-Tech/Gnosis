@@ -61,8 +61,6 @@
                         ? window.innerWidth - el.offsetWidth
                         : parseFloat(el.style.left);
                     const finalY = parseFloat(el.style.top);
-
-                    dotnetRef.invokeMethodAsync('ActualizarPosicion', panelId, finalX, finalY);
                 }
 
                 document.addEventListener('mousemove', onMove);
