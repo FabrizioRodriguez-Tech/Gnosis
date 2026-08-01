@@ -94,6 +94,9 @@ namespace Gnosis.WebUI
         private readonly System.Timers.Timer _internalTimer;
         private ModoPomodoro _modoActual = ModoPomodoro.Enfoque;
 
+        // Cuenta los descansos cortos consecutivos completados; al llegar a 2, el siguiente descanso es largo
+        private int _descansosCortosSeguidos = 0;
+
         // [AÑADIDO] Propiedades para almacenar los tiempos configurados por el usuario
         public int DuracionEnfoque { get; set; } = 25;
         public int DuracionDescansoCorto { get; set; } = 5;
@@ -161,6 +164,41 @@ namespace Gnosis.WebUI
         }
 
         private void EjecutarTick() { _estadoActual.Tick(this); OnTick?.Invoke(); }
-        public void NotificarFinSesion() => OnSesionTerminada?.Invoke();
+
+        // [AÑADIDO] Al terminar una sesión: notifica y avanza automáticamente al siguiente modo,
+        // arrancándolo sin intervención del usuario.
+        public void NotificarFinSesion()
+        {
+            OnSesionTerminada?.Invoke();
+            AvanzarModoAutomatico();
+        }
+
+        private void AvanzarModoAutomatico()
+        {
+            ModoPomodoro siguienteModo;
+
+            switch (_modoActual)
+            {
+                case ModoPomodoro.Enfoque:
+                    // Después de 2 descansos cortos seguidos, toca descanso largo
+                    siguienteModo = _descansosCortosSeguidos >= 2 ? ModoPomodoro.DescansoLargo : ModoPomodoro.DescansoCorto;
+                    break;
+                case ModoPomodoro.DescansoCorto:
+                    _descansosCortosSeguidos++;
+                    siguienteModo = ModoPomodoro.Enfoque;
+                    break;
+                case ModoPomodoro.DescansoLargo:
+                    _descansosCortosSeguidos = 0;
+                    siguienteModo = ModoPomodoro.Enfoque;
+                    break;
+                default:
+                    siguienteModo = ModoPomodoro.Enfoque;
+                    break;
+            }
+
+            _modoActual = siguienteModo;
+            RestablecerTiempoPorModo();
+            CambiarEstado(new EstadoCorriendo());
+        }
     }
 }

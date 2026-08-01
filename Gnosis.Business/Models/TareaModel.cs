@@ -10,6 +10,7 @@ namespace Gnosis.Business.Models
         public string? Descripcion { get; set; }
         public bool IsCompletada { get; set; }
         public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
+        public DateTime? FechaCompletada { get; set; }
         public Guid? TareaPadreId { get; set; }
         public List<TareaModel> Subtareas { get; set; } = new List<TareaModel>();
     }

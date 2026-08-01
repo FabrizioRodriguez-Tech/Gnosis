@@ -2,7 +2,7 @@
 using System.Net.Http.Json;
 using Gnosis.Business.Models;
 
-namespace Gnosis.WebUI
+namespace Gnosis.WebUI.services
 {
     public class RespuestaIA
     {

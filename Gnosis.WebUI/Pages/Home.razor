@@ -1,14 +1,15 @@
 ﻿@page "/"
 @* REFACTORIZACIÓN: Extract Class aplicado sobre God Class *@
-@* Home.razor pasó de 350+ líneas a ~180. La lógica de Audio e IA *@
-@* fue extraída a PanelAudio.razor y PanelIA.razor respectivamente. *@
 @inject Gnosis.WebUI.TemporizadorPomodoro Pomodoro
 @inject Gnosis.WebUI.ITareaHttpProxy TareaProxy
-@inject Gnosis.WebUI.EstadoFondoActual EstadoFondo
+@inject EstadoFondoActual EstadoFondo
 @inject NavigationManager NavManager
 @inject IJSRuntime JS
+@inject Gnosis.WebUI.Services.NotificacionService Notificaciones
+@inject Gnosis.WebUI.ISesionEnfoqueHttpProxy SesionProxy
 @using Gnosis.Business.Models
 @using Gnosis.WebUI.Components
+@using Gnosis.WebUI.Services
 @implements IDisposable
 
 @if (tareas == null)
@@ -64,13 +65,13 @@ else
                     <div class="timer-actions-right">
                         @if (Pomodoro?.NombreEstadoActual == "Pausado" || Pomodoro?.NombreEstadoActual == "Detenido")
                         {
-                            <button class="btn-timer-main" @onclick="Pomodoro.Iniciar">Start</button>
+                            <button class="btn-timer-main" @onclick="() => Pomodoro?.Iniciar()">Start</button>
                         }
                         else
                         {
-                            <button class="btn-timer-main" @onclick="Pomodoro!.Pausar">Pause</button>
+                            <button class="btn-timer-main" @onclick="() => Pomodoro?.Pausar()">Pause</button>
                         }
-                        <button class="btn-timer-icon" @onclick="Pomodoro!.Detener" title="Reiniciar">&#x21BB;</button>
+                        <button class="btn-timer-icon" @onclick="() => Pomodoro?.Detener()" title="Reiniciar">&#x21BB;</button>
                     </div>
                 </div>
 
@@ -102,7 +103,7 @@ else
                     </div>
                     <div class="setting-field">
                         <label>Short</label>
-                        <input type="number" min="1" max="30" @bind-value="TiempoDescansoCorto" />
+                        <input type="number" min="1" max="60" @bind-value="TiempoDescansoCorto" />
                     </div>
                     <div class="setting-field">
                         <label>Long</label>
@@ -182,6 +183,11 @@ else
                     </div>
                 }
 
+                @if (!string.IsNullOrEmpty(errorTareas))
+                {
+                    <p class="text-danger small mb-2">@errorTareas</p>
+                }
+
                 <div class="input-group input-group-sm">
                     <input type="text" class="form-control bg-white bg-opacity-10 text-white border-0"
                            placeholder="Nuevo objetivo..."
@@ -193,14 +199,29 @@ else
         }
     </div>
 
-    <!-- PANEL AUDIO — extraído a PanelAudio.razor (Extract Class) -->
+    <!-- PANEL AUDIO -->
     <PanelAudio PosX="audioX"
                 PosY="audioY"
                 Minimizado="audioMinimizado"
                 OnMinimizadoCambiado="v => audioMinimizado = v"
                 OnArrastre="OnMouseDownAudio" />
 
-    <!-- BARRA IA — extraída a PanelIA.razor (Extract Class) -->
+    <!-- PANEL AGENDA -->
+    <PanelAgenda PosX="agendaX"
+                 PosY="agendaY"
+                 Minimizado="agendaMinimizado"
+                 OnMinimizadoCambiado="v => agendaMinimizado = v"
+                 OnArrastre="OnMouseDownAgenda"
+                 TareasDisponibles="tareas" />
+
+    <!-- PANEL DASHBOARD -->
+    <PanelDashboard PosX="dashboardX"
+                     PosY="dashboardY"
+                     Minimizado="dashboardMinimizado"
+                     OnMinimizadoCambiado="v => dashboardMinimizado = v"
+                     OnArrastre="OnMouseDownDashboard" />
+
+    <!-- BARRA IA -->
     <PanelIA OnTareasCreadas="AgregarTareasDesdeIA" />
 }
 
@@ -211,6 +232,11 @@ else
     private bool pomodoroMinimizado = false;
     private bool todoMinimizado = false;
     private bool audioMinimizado = false;
+    private bool agendaMinimizado = true;
+    private bool dashboardMinimizado = true;
+
+    // Bandera para cancelar apertura/cierre automático si el usuario hizo un arrastre
+    private bool huboArrastreReal = false;
 
     // ── Posiciones ───────────────────────────────────────────────
     private double pomodoroX = 40;
@@ -219,18 +245,26 @@ else
     private double todoY = 120;
     private double audioX = 40;
     private double audioY = 420;
+    private double agendaX = 460;
+    private double agendaY = 420;
+    private double dashboardX = 40;
+    private double dashboardY = 480;
 
-   
     [JSInvokable]
     public void ActualizarPosicion(string panelId, double x, double y)
     {
+        huboArrastreReal = true;
         if (panelId == "panel-pomodoro") { pomodoroX = x; pomodoroY = y; }
         else if (panelId == "panel-todo") { todoX = x; todoY = y; }
         else if (panelId == "panel-audio") { audioX = x; audioY = y; }
+        else if (panelId == "panel-agenda") { agendaX = x; agendaY = y; }
+        else if (panelId == "panel-dashboard") { dashboardX = x; dashboardY = y; }
+        StateHasChanged();
     }
 
     private async Task OnMouseDownPomodoro(MouseEventArgs e)
     {
+        huboArrastreReal = false;
         var offX = pomodoroMinimizado ? 0 : e.ClientX - pomodoroX;
         var offY = e.ClientY - pomodoroY;
         await JS.InvokeVoidAsync("gnosis.iniciarArrastre", "panel-pomodoro", _dotnetRef, offX, offY, pomodoroMinimizado);
@@ -238,9 +272,34 @@ else
 
     private async Task OnMouseDownTodo(MouseEventArgs e)
     {
+        huboArrastreReal = false;
         var offX = todoMinimizado ? 0 : e.ClientX - todoX;
         var offY = e.ClientY - todoY;
-        await JS.InvokeVoidAsync("gnosis.iniciarArrastre", "panel-todo", offX, offY, todoMinimizado);
+        await JS.InvokeVoidAsync("gnosis.iniciarArrastre", "panel-todo", _dotnetRef, offX, offY, todoMinimizado);
+    }
+
+    private async Task OnMouseDownAudio(MouseEventArgs e)
+    {
+        huboArrastreReal = false;
+        var offX = audioMinimizado ? 0 : e.ClientX - audioX;
+        var offY = e.ClientY - audioY;
+        await JS.InvokeVoidAsync("gnosis.iniciarArrastre", "panel-audio", _dotnetRef, offX, offY, audioMinimizado);
+    }
+
+    private async Task OnMouseDownAgenda(MouseEventArgs e)
+    {
+        huboArrastreReal = false;
+        var offX = agendaMinimizado ? 0 : e.ClientX - agendaX;
+        var offY = e.ClientY - agendaY;
+        await JS.InvokeVoidAsync("gnosis.iniciarArrastre", "panel-agenda", _dotnetRef, offX, offY, agendaMinimizado);
+    }
+
+    private async Task OnMouseDownDashboard(MouseEventArgs e)
+    {
+        huboArrastreReal = false;
+        var offX = dashboardMinimizado ? 0 : e.ClientX - dashboardX;
+        var offY = e.ClientY - dashboardY;
+        await JS.InvokeVoidAsync("gnosis.iniciarArrastre", "panel-dashboard", _dotnetRef, offX, offY, dashboardMinimizado);
     }
 
     // ── Callback: tareas creadas por la IA ───────────────────────
@@ -250,27 +309,57 @@ else
         foreach (var tarea in tareasNuevas)
         {
             tareas.Add(tarea);
-            NuevosTitulosSubtareas[tarea.Id] = string.Empty;
-            if (TareaProxy != null)
-                await TareaProxy.CrearTareaAsync(tarea);
-            if (tarea.Subtareas != null)
-                foreach (var sub in tarea.Subtareas)
-                    if (TareaProxy != null)
-                        await TareaProxy.CrearTareaAsync(sub);
+            nuevosTitulosSubtareas[tarea.Id] = string.Empty;
+            try
+            {
+                if (TareaProxy != null)
+                    await TareaProxy.CrearTareaAsync(tarea);
+                if (tarea.Subtareas != null)
+                    foreach (var sub in tarea.Subtareas)
+                        if (TareaProxy != null)
+                            await TareaProxy.CrearTareaAsync(sub);
+            }
+            catch (Exception ex)
+            {
+                // No se pudo persistir: la quitamos de la lista local para que no quede
+                // "fantasma" (con un Id que no existe en la BD) y pueda romper la Agenda
+                // por violación de FK al intentar vincularle un bloque de tiempo.
+                Console.WriteLine($"[Gnosis] Error al crear tarea desde IA: {ex.Message}");
+                tareas.Remove(tarea);
+                nuevosTitulosSubtareas.Remove(tarea.Id);
+                errorTareas = "No se pudo guardar una tarea generada por la IA. Verifica tu conexión e inténtalo de nuevo.";
+            }
         }
         await InvokeAsync(StateHasChanged);
     }
 
-    protected override void OnAfterRender(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
+        {
             _dotnetRef = DotNetObjectReference.Create(this);
+
+            // Solicitar permiso de notificaciones del navegador al cargar la app
+            if (Notificaciones != null)
+                await Notificaciones.SolicitarPermisoAsync();
+        }
     }
 
     // ── Helpers de panel ─────────────────────────────────────────
+    // Al minimizar, el panel se queda a la altura (Y) en la que ya estaba; solo se decide
+    // si el borde queda a la izquierda o a la derecha según de qué lado de la pantalla esté.
     private string BordeMinimizado(double x) => x < 700 ? "izquierdo" : "derecho";
-    private string EstiloPanel(bool minimizado, double x, double y) =>
-        minimizado ? $"top: {y}px;" : $"left: {x}px; top: {y}px;";
+
+    private string EstiloPanel(bool minimizado, double x, double y)
+    {
+        if (minimizado)
+        {
+            return x < 700
+                ? $"left: 0px; top: {y}px;"
+                : $"left: calc(100vw - 72px); top: {y}px;";
+        }
+        return $"left: {x}px; top: {y}px;";
+    }
 
     private string ModoCorto() => Pomodoro?.ModoActual.ToString() switch
     {
@@ -280,13 +369,23 @@ else
         _ => "P"
     };
 
-    private void TogglePomodoro() => pomodoroMinimizado = !pomodoroMinimizado;
-    private void ToggleTodo() => todoMinimizado = !todoMinimizado;
+    private void TogglePomodoro()
+    {
+        if (huboArrastreReal) { huboArrastreReal = false; return; }
+        pomodoroMinimizado = !pomodoroMinimizado;
+    }
+
+    private void ToggleTodo()
+    {
+        if (huboArrastreReal) { huboArrastreReal = false; return; }
+        todoMinimizado = !todoMinimizado;
+    }
 
     // ── Lógica de tareas ─────────────────────────────────────────
     private List<TareaModel>? tareas;
     private string nuevaTareaTitulo = string.Empty;
-    private Dictionary<Guid, string> NuevosTitulosSubtareas { get; set; } = new();
+    private string? errorTareas;
+    private Dictionary<Guid, string> nuevosTitulosSubtareas = new();
     private bool mostrarConfiguracion = false;
 
     private int TiempoPomodoro
@@ -309,7 +408,15 @@ else
     {
         try
         {
-            if (Pomodoro != null) { Pomodoro.OnTick -= ActualizarPantalla; Pomodoro.OnTick += ActualizarPantalla; }
+            if (Pomodoro != null)
+            {
+                Pomodoro.OnTick -= ActualizarPantalla;
+                Pomodoro.OnTick += ActualizarPantalla;
+
+                // NUEVO: Suscribirse al fin de sesión para sonido
+                Pomodoro.OnSesionTerminada -= OnSesionTerminada;
+                Pomodoro.OnSesionTerminada += OnSesionTerminada;
+            }
             EstadoFondo.OnCambio -= ActualizarPantalla;
             EstadoFondo.OnCambio += ActualizarPantalla;
             await CargarTareas();
@@ -318,6 +425,58 @@ else
         {
             Console.WriteLine($"[Gnosis Error] {ex.Message}");
             tareas = new List<TareaModel>();
+        }
+    }
+
+    // ── Manejador de fin de sesión (sonido + notificación) ────────
+    private async void OnSesionTerminada()
+    {
+        // Capturar el modo que acaba de terminar ANTES de cualquier await:
+        // TemporizadorPomodoro dispara este evento antes de avanzar al siguiente modo.
+        var modoTerminado = Pomodoro?.ModoActual;
+        var duracionMinutos = modoTerminado switch
+        {
+            Gnosis.WebUI.ModoPomodoro.Enfoque => Pomodoro?.DuracionEnfoque ?? 0,
+            Gnosis.WebUI.ModoPomodoro.DescansoCorto => Pomodoro?.DuracionDescansoCorto ?? 0,
+            Gnosis.WebUI.ModoPomodoro.DescansoLargo => Pomodoro?.DuracionDescansoLargo ?? 0,
+            _ => 0
+        };
+
+        try
+        {
+            // Reproducir sonido de notificación
+            await JS.InvokeVoidAsync("gnosis.reproducirSonido", "notificacion");
+
+            var (titulo, cuerpo) = modoTerminado switch
+            {
+                Gnosis.WebUI.ModoPomodoro.Enfoque => ("Pomodoro terminado", "Hora de un descanso."),
+                Gnosis.WebUI.ModoPomodoro.DescansoCorto => ("Descanso corto terminado", "De vuelta al enfoque."),
+                Gnosis.WebUI.ModoPomodoro.DescansoLargo => ("Descanso largo terminado", "De vuelta al enfoque."),
+                _ => ("Gnosis", "Sesión terminada.")
+            };
+
+            if (Notificaciones != null)
+                await Notificaciones.NotificarAsync(titulo, cuerpo);
+
+            // Registrar la sesión completada para el dashboard de productividad.
+            // Falla en silencio (no debe interrumpir sonido/notificación si el backend no responde).
+            if (SesionProxy != null && modoTerminado.HasValue)
+            {
+                try
+                {
+                    await SesionProxy.RegistrarSesionAsync(modoTerminado.Value.ToString(), duracionMinutos);
+                }
+                catch (Exception exSesion)
+                {
+                    Console.WriteLine($"[Gnosis] Error al registrar sesión: {exSesion.Message}");
+                }
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Gnosis] Error al notificar fin de sesión: {ex.Message}");
         }
     }
 
@@ -334,45 +493,66 @@ else
     {
         try { tareas = TareaProxy != null ? (await TareaProxy.ObtenerTodasAsync())?.ToList() ?? new() : new(); }
         catch (Exception ex) { Console.WriteLine($"Error al cargar tareas: {ex.Message}"); tareas = new(); }
-        NuevosTitulosSubtareas = new();
+        nuevosTitulosSubtareas = new();
         if (tareas != null)
             foreach (var t in tareas)
-                if (t != null && !NuevosTitulosSubtareas.ContainsKey(t.Id))
-                    NuevosTitulosSubtareas[t.Id] = string.Empty;
+                if (t != null && !nuevosTitulosSubtareas.ContainsKey(t.Id))
+                    nuevosTitulosSubtareas[t.Id] = string.Empty;
     }
 
-    private string ObtenerTextoSubtarea(Guid id) => NuevosTitulosSubtareas.TryGetValue(id, out var texto) ? texto : string.Empty;
-    private void ActualizarTextoSubtarea(Guid id, string? valor) => NuevosTitulosSubtareas[id] = valor ?? string.Empty;
+    private string ObtenerTextoSubtarea(Guid id) => nuevosTitulosSubtareas.TryGetValue(id, out var texto) ? texto : string.Empty;
+    private void ActualizarTextoSubtarea(Guid id, string? valor) => nuevosTitulosSubtareas[id] = valor ?? string.Empty;
 
     private async Task CrearNuevaTarea()
     {
         if (string.IsNullOrWhiteSpace(nuevaTareaTitulo)) return;
+        var nueva = new TareaModel { Id = Guid.NewGuid(), Titulo = nuevaTareaTitulo, FechaCreacion = DateTime.UtcNow, Subtareas = new() };
+        tareas ??= new();
+        tareas.Add(nueva);
+        nuevosTitulosSubtareas[nueva.Id] = string.Empty;
+        nuevaTareaTitulo = string.Empty;
+        errorTareas = null;
+        await InvokeAsync(StateHasChanged);
         try
         {
-            var nueva = new TareaModel { Id = Guid.NewGuid(), Titulo = nuevaTareaTitulo, FechaCreacion = DateTime.UtcNow, Subtareas = new() };
-            tareas ??= new();
-            tareas.Add(nueva);
-            NuevosTitulosSubtareas[nueva.Id] = string.Empty;
-            nuevaTareaTitulo = string.Empty;
-            await InvokeAsync(StateHasChanged);
             if (TareaProxy != null) await TareaProxy.CrearTareaAsync(nueva);
         }
-        catch (Exception ex) { Console.WriteLine($"[Gnosis] Error al crear tarea: {ex.Message}"); }
+        catch (Exception ex)
+        {
+            // El guardado en el servidor falló: revertimos el agregado optimista.
+            // Si la dejáramos en la lista, su Id nunca existiría en la BD y cualquier
+            // bloque de Agenda vinculado a ella dispararía una violación de FK al guardarse.
+            Console.WriteLine($"[Gnosis] Error al crear tarea: {ex.Message}");
+            tareas.Remove(nueva);
+            nuevosTitulosSubtareas.Remove(nueva.Id);
+            errorTareas = "No se pudo guardar la tarea. Verifica tu conexión e inténtalo de nuevo.";
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task AgregarSubtarea(TareaModel padre)
     {
-        if (!NuevosTitulosSubtareas.TryGetValue(padre.Id, out var sub) || string.IsNullOrWhiteSpace(sub)) return;
+        if (!nuevosTitulosSubtareas.TryGetValue(padre.Id, out var sub) || string.IsNullOrWhiteSpace(sub)) return;
+        var nuevaSub = new TareaModel { Id = Guid.NewGuid(), Titulo = sub, TareaPadreId = padre.Id, Subtareas = new() };
+        padre.Subtareas ??= new();
+        padre.Subtareas.Add(nuevaSub);
+        nuevosTitulosSubtareas[padre.Id] = string.Empty;
+        errorTareas = null;
+        await InvokeAsync(StateHasChanged);
         try
         {
-            var nuevaSub = new TareaModel { Id = Guid.NewGuid(), Titulo = sub, TareaPadreId = padre.Id, Subtareas = new() };
-            padre.Subtareas ??= new();
-            padre.Subtareas.Add(nuevaSub);
-            NuevosTitulosSubtareas[padre.Id] = string.Empty;
-            await InvokeAsync(StateHasChanged);
             if (TareaProxy != null) await TareaProxy.CrearTareaAsync(nuevaSub);
         }
-        catch (Exception ex) { Console.WriteLine($"[Gnosis] Error al agregar subtarea: {ex.Message}"); }
+        catch (Exception ex)
+        {
+            // Mismo motivo que en CrearNuevaTarea: sin esto, una subtarea "fantasma"
+            // podría vincularse a un bloque de Agenda y romper el insert por FK.
+            Console.WriteLine($"[Gnosis] Error al agregar subtarea: {ex.Message}");
+            padre.Subtareas.Remove(nuevaSub);
+            nuevosTitulosSubtareas.Remove(padre.Id);
+            errorTareas = "No se pudo guardar la subtarea. Verifica tu conexión e inténtalo de nuevo.";
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task CambiarEstadoTarea(TareaModel tarea)
@@ -385,7 +565,7 @@ else
     {
         if (tareas == null) return;
         tareas.Remove(padre);
-        if (NuevosTitulosSubtareas.ContainsKey(padre.Id)) NuevosTitulosSubtareas.Remove(padre.Id);
+        if (nuevosTitulosSubtareas.ContainsKey(padre.Id)) nuevosTitulosSubtareas.Remove(padre.Id);
         if (TareaProxy != null)
             try { await TareaProxy.EliminarTareaAsync(padre.Id); }
             catch (Exception ex) { Console.WriteLine($"Error al eliminar: {ex.Message}"); }
@@ -406,16 +586,12 @@ else
 
     public void Dispose()
     {
-        if (Pomodoro != null) Pomodoro.OnTick -= ActualizarPantalla;
+        if (Pomodoro != null)
+        {
+            Pomodoro.OnTick -= ActualizarPantalla;
+            Pomodoro.OnSesionTerminada -= OnSesionTerminada;
+        }
         EstadoFondo.OnCambio -= ActualizarPantalla;
         _dotnetRef?.Dispose();
     }
-
-    private async Task OnMouseDownAudio(MouseEventArgs e)
-    {
-        var offX = audioMinimizado ? 0 : e.ClientX - audioX;
-        var offY = e.ClientY - audioY;
-        await JS.InvokeVoidAsync("gnosis.iniciarArrastre", "panel-audio", _dotnetRef, offX, offY, audioMinimizado);
-    }
-
 }
