@@ -19,3 +19,8 @@ Logs/
 
 ## Visual Studio 2015/2017/2019/2022/2026 cache
 .vs/
+
+## Configuración local con secretos (connection strings, passwords, API keys)
+## No se sube: cada dev mantiene su propia copia local con sus credenciales reales.
+appsettings.Development.json
+appsettings.*.Local.json
