@@ -11,6 +11,9 @@ namespace Gnosis.Domain.Entities
         public bool IsCompletada { get; set; }
         public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
 
+        // Se completa cuando IsCompletada pasa a true; se limpia si vuelve a false. Usado para el dashboard.
+        public DateTime? FechaCompletada { get; set; }
+
         // Relación reflexiva para desglose jerárquico (Árbol de subtareas)
         public Guid? TareaPadreId { get; set; }
         public Tarea? TareaPadre { get; set; }

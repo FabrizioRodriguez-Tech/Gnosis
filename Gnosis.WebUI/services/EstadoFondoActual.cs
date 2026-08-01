@@ -1,7 +1,7 @@
 ﻿// Ubicación real: Gnosis.WebUI/EstadoFondoActual.cs
 using Gnosis.Business.Models;
 
-namespace Gnosis.WebUI
+namespace Gnosis.WebUI.services
 {
     public class EstadoFondoActual
     {

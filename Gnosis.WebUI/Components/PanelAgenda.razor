@@ -1,0 +1,357 @@
+@* Gnosis.WebUI/Components/PanelAgenda.razor *@
+@* Feature: Agenda / Schedule - vista de semana con bloques de tiempo arrastrables *@
+@inject Gnosis.WebUI.IBloqueTiempoHttpProxy BloqueProxy
+@using Gnosis.Business.Models
+
+<div id="panel-agenda"
+     class="panel-flotante panel-agenda @(Minimizado ? "panel-minimizado borde-" + BordeMinimizado(PosX) : "")"
+     style="@EstiloPanel()">
+
+    <div class="panel-header" @onmousedown="OnMouseDownAgenda">
+        <span class="panel-titulo">Agenda</span>
+        <button class="btn-minimizar-panel" @onclick="ToggleMinimizado" @onclick:stopPropagation="true">
+            @if (Minimizado)
+            {
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none"
+                     viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+            }
+            else
+            {
+                <span>&#x25BE;</span>
+            }
+        </button>
+    </div>
+
+    @if (!Minimizado)
+    {
+        <div class="panel-contenido agenda-contenido">
+            <div class="agenda-toolbar">
+                <button class="agenda-btn-nav" @onclick="SemanaAnterior" title="Semana anterior">&#x2039;</button>
+                <span class="agenda-rango">@RangoSemanaTexto()</span>
+                <button class="agenda-btn-nav" @onclick="SemanaSiguiente" title="Semana siguiente">&#x203A;</button>
+                <button class="agenda-btn-hoy" @onclick="IrHoy">Hoy</button>
+            </div>
+
+            @if (cargando)
+            {
+                <p class="text-white-50 small">Cargando agenda...</p>
+            }
+            else
+            {
+                <div class="agenda-grid">
+                    <div class="agenda-celda-esquina" style="grid-column: 1; grid-row: 1;"></div>
+                    @for (int d = 0; d < 7; d++)
+                    {
+                        var fecha = InicioSemana.AddDays(d);
+                        <div class="agenda-dia-header @(fecha.Date == DateTime.Today ? "agenda-dia-hoy" : "")"
+                             style="grid-column: @(d + 2); grid-row: 1;">
+                            <span class="agenda-dia-nombre">@fecha.ToString("ddd", CulturaEs)</span>
+                            <span class="agenda-dia-numero">@fecha.Day</span>
+                        </div>
+                    }
+
+                    @for (int h = 0; h < Horas.Length; h++)
+                    {
+                        var hora = Horas[h];
+                        <div class="agenda-hora-label" style="grid-column: 1; grid-row: @(h + 2);">@hora.ToString("00"):00</div>
+
+                        @for (int d = 0; d < 7; d++)
+                        {
+                            var dia = d;
+                            var horaCelda = hora;
+                            <div class="agenda-celda"
+                                 style="grid-column: @(d + 2); grid-row: @(h + 2);"
+                                 @ondragover:preventDefault="true"
+                                 @ondrop="() => SoltarBloque(dia, horaCelda)"
+                                 @onclick="() => AbrirFormularioNuevo(dia, horaCelda)">
+                            </div>
+                        }
+                    }
+
+                    @foreach (var bloque in bloques)
+                    {
+                        var diaIndex = (bloque.FechaInicio.Date - InicioSemana.Date).Days;
+                        if (diaIndex < 0 || diaIndex > 6) continue;
+
+                        var horaInicioIdx = Array.IndexOf(Horas, bloque.FechaInicio.Hour);
+                        if (horaInicioIdx < 0) continue;
+
+                        var duracionHoras = Math.Max(1, (int)Math.Round((bloque.FechaFin - bloque.FechaInicio).TotalHours));
+
+                        <div class="agenda-bloque"
+                             style="grid-column: @(diaIndex + 2); grid-row: @(horaInicioIdx + 2) / span @duracionHoras; background-color: @(string.IsNullOrEmpty(bloque.Color) ? "#6c5ce7" : bloque.Color);"
+                             draggable="true"
+                             @ondragstart="() => IniciarArrastre(bloque)"
+                             @onclick="() => AbrirFormularioEdicion(bloque)"
+                             @onclick:stopPropagation="true">
+                            <span class="agenda-bloque-titulo">@bloque.Titulo</span>
+                            @if (!string.IsNullOrEmpty(bloque.TareaTitulo))
+                            {
+                                <span class="agenda-bloque-tarea">@bloque.TareaTitulo</span>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (mostrarFormulario)
+            {
+                <div class="agenda-form-overlay" @onclick="CerrarFormulario">
+                    <div class="agenda-form" @onclick:stopPropagation="true">
+                        <h6 class="agenda-form-titulo">@(bloqueEditandoId == null ? "Nuevo bloque" : "Editar bloque")</h6>
+
+                        <input type="text" class="agenda-form-input" placeholder="Título del bloque"
+                               @bind="formTitulo" />
+
+                        <div class="agenda-form-row">
+                            <label>Inicio</label>
+                            <input type="datetime-local" class="agenda-form-input" @bind="formInicio" />
+                        </div>
+                        <div class="agenda-form-row">
+                            <label>Fin</label>
+                            <input type="datetime-local" class="agenda-form-input" @bind="formFin" />
+                        </div>
+
+                        <div class="agenda-form-row">
+                            <label>Vincular tarea</label>
+                            <select class="agenda-form-input" @bind="formTareaId">
+                                <option value="">Ninguna</option>
+                                @if (TareasDisponibles != null)
+                                {
+                                    @foreach (var t in TareasDisponibles)
+                                    {
+                                        <option value="@t.Id">@t.Titulo</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(formError))
+                        {
+                            <p class="agenda-form-error">@formError</p>
+                        }
+
+                        <div class="agenda-form-acciones">
+                            @if (bloqueEditandoId != null)
+                            {
+                                <button class="agenda-btn-eliminar" @onclick="EliminarBloqueActual">Eliminar</button>
+                            }
+                            <button class="agenda-btn-cancelar" @onclick="CerrarFormulario">Cancelar</button>
+                            <button class="agenda-btn-guardar" @onclick="GuardarBloque">Guardar</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public double PosX { get; set; } = 460;
+    [Parameter] public double PosY { get; set; } = 480;
+    [Parameter] public bool Minimizado { get; set; } = false;
+    [Parameter] public EventCallback<bool> OnMinimizadoCambiado { get; set; }
+    [Parameter] public EventCallback<MouseEventArgs> OnArrastre { get; set; }
+    [Parameter] public List<TareaModel>? TareasDisponibles { get; set; }
+
+    private static readonly System.Globalization.CultureInfo CulturaEs = new("es-ES");
+    private readonly int[] Horas = Enumerable.Range(6, 17).ToArray(); // 06:00 a 22:00
+
+    private DateTime InicioSemana;
+    private List<BloqueTiempoModel> bloques = new();
+    private bool cargando = true;
+
+    // ── Arrastre de bloques (drag-and-drop nativo, sin JS interop) ─
+    private BloqueTiempoModel? bloqueArrastrando;
+
+    // ── Formulario de creación/edición ──────────────────────────
+    private bool mostrarFormulario = false;
+    private Guid? bloqueEditandoId;
+    private string formTitulo = string.Empty;
+    private DateTime formInicio;
+    private DateTime formFin;
+    private string formTareaId = string.Empty;
+    private string formError = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        InicioSemana = InicioDeSemana(DateTime.Today);
+        await CargarBloques();
+    }
+
+    private static DateTime InicioDeSemana(DateTime fecha)
+    {
+        int diff = ((int)fecha.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+        return fecha.Date.AddDays(-diff);
+    }
+
+    private async Task CargarBloques()
+    {
+        cargando = true;
+        try
+        {
+            var resultado = await BloqueProxy.ObtenerPorRangoAsync(InicioSemana, InicioSemana.AddDays(7));
+            bloques = resultado.ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Gnosis] Error al cargar agenda: {ex.Message}");
+            bloques = new();
+        }
+        finally
+        {
+            cargando = false;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SemanaAnterior() { InicioSemana = InicioSemana.AddDays(-7); await CargarBloques(); }
+    private async Task SemanaSiguiente() { InicioSemana = InicioSemana.AddDays(7); await CargarBloques(); }
+    private async Task IrHoy() { InicioSemana = InicioDeSemana(DateTime.Today); await CargarBloques(); }
+
+    private string RangoSemanaTexto()
+    {
+        var fin = InicioSemana.AddDays(6);
+        return InicioSemana.Month == fin.Month
+            ? $"{InicioSemana.ToString("dd", CulturaEs)} - {fin.ToString("dd MMM yyyy", CulturaEs)}"
+            : $"{InicioSemana.ToString("dd MMM", CulturaEs)} - {fin.ToString("dd MMM yyyy", CulturaEs)}";
+    }
+
+    // ── Arrastre / drop de bloques existentes ───────────────────
+    private void IniciarArrastre(BloqueTiempoModel bloque) => bloqueArrastrando = bloque;
+
+    private async Task SoltarBloque(int diaIndex, int hora)
+    {
+        if (bloqueArrastrando == null) return;
+
+        var duracion = bloqueArrastrando.FechaFin - bloqueArrastrando.FechaInicio;
+        var nuevoInicio = InicioSemana.AddDays(diaIndex).AddHours(hora);
+
+        var actualizado = new BloqueTiempoModel
+        {
+            Id = bloqueArrastrando.Id,
+            Titulo = bloqueArrastrando.Titulo,
+            Descripcion = bloqueArrastrando.Descripcion,
+            FechaInicio = nuevoInicio,
+            FechaFin = nuevoInicio.Add(duracion),
+            Color = bloqueArrastrando.Color,
+            TareaId = bloqueArrastrando.TareaId
+        };
+
+        bloqueArrastrando = null;
+
+        try
+        {
+            await BloqueProxy.ActualizarAsync(actualizado);
+            await CargarBloques();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Gnosis] Error al mover bloque: {ex.Message}");
+        }
+    }
+
+    // ── Formulario ───────────────────────────────────────────────
+    private void AbrirFormularioNuevo(int diaIndex, int hora)
+    {
+        bloqueEditandoId = null;
+        formTitulo = string.Empty;
+        formInicio = InicioSemana.AddDays(diaIndex).AddHours(hora);
+        formFin = formInicio.AddHours(1);
+        formTareaId = string.Empty;
+        formError = string.Empty;
+        mostrarFormulario = true;
+    }
+
+    private void AbrirFormularioEdicion(BloqueTiempoModel bloque)
+    {
+        bloqueEditandoId = bloque.Id;
+        formTitulo = bloque.Titulo;
+        formInicio = bloque.FechaInicio;
+        formFin = bloque.FechaFin;
+        formTareaId = bloque.TareaId?.ToString() ?? string.Empty;
+        formError = string.Empty;
+        mostrarFormulario = true;
+    }
+
+    private void CerrarFormulario()
+    {
+        mostrarFormulario = false;
+        bloqueEditandoId = null;
+    }
+
+    private async Task GuardarBloque()
+    {
+        if (string.IsNullOrWhiteSpace(formTitulo))
+        {
+            formError = "El título es obligatorio.";
+            return;
+        }
+        if (formFin <= formInicio)
+        {
+            formError = "La hora de fin debe ser posterior a la de inicio.";
+            return;
+        }
+
+        Guid? tareaId = Guid.TryParse(formTareaId, out var tid) ? tid : null;
+
+        var modelo = new BloqueTiempoModel
+        {
+            Id = bloqueEditandoId ?? Guid.NewGuid(),
+            Titulo = formTitulo,
+            FechaInicio = formInicio,
+            FechaFin = formFin,
+            TareaId = tareaId
+        };
+
+        try
+        {
+            if (bloqueEditandoId == null)
+                await BloqueProxy.CrearAsync(modelo);
+            else
+                await BloqueProxy.ActualizarAsync(modelo);
+
+            mostrarFormulario = false;
+            bloqueEditandoId = null;
+            await CargarBloques();
+        }
+        catch (Exception ex)
+        {
+            formError = $"Error al guardar: {ex.Message}";
+        }
+    }
+
+    private async Task EliminarBloqueActual()
+    {
+        if (bloqueEditandoId == null) return;
+        try
+        {
+            await BloqueProxy.EliminarAsync(bloqueEditandoId.Value);
+            mostrarFormulario = false;
+            bloqueEditandoId = null;
+            await CargarBloques();
+        }
+        catch (Exception ex)
+        {
+            formError = $"Error al eliminar: {ex.Message}";
+        }
+    }
+
+    // ── Arrastre del panel / minimizado (igual que los demás paneles) ─
+    private async Task OnMouseDownAgenda(MouseEventArgs e) => await OnArrastre.InvokeAsync(e);
+
+    private async Task ToggleMinimizado()
+    {
+        Minimizado = !Minimizado;
+        await OnMinimizadoCambiado.InvokeAsync(Minimizado);
+    }
+
+    private string BordeMinimizado(double x) => x < 700 ? "izquierdo" : "derecho";
+    private string EstiloPanel() =>
+        Minimizado ? $"top: {PosY}px;" : $"left: {PosX}px; top: {PosY}px;";
+}

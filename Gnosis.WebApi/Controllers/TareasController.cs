@@ -19,16 +19,17 @@ public class TareasController : ControllerBase
     /// Obtiene las tareas principales u objetivos raíz del sistema.
     /// </summary>
     [HttpGet]
-    public IActionResult ObtenerTodas()
+    public async Task<IActionResult> ObtenerTodas()
     {
-        // Datos simulados para evitar el error 500 por desconexion a base de datos
-        var tareasSimuladas = new[]
+        try
         {
-            new { Id = Guid.NewGuid(), Titulo = "Configurar arquitectura Gnosis", IsCompletada = true },
-            new { Id = Guid.NewGuid(), Titulo = "Implementar API REST", IsCompletada = false }
-        };
-
-        return Ok(tareasSimuladas);
+            var tareas = await _tareaService.ObtenerTareasPrincipalesAsync();
+            return Ok(tareas);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Error interno en el servidor: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -40,7 +41,7 @@ public class TareasController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Titulo))
             return BadRequest("El título es obligatorio.");
 
-        var nuevaTarea = await _tareaService.CrearTareaRaizAsync(request.Titulo, request.Descripcion);
+        var nuevaTarea = await _tareaService.CrearTareaRaizAsync(request.Id, request.Titulo, request.Descripcion);
         return CreatedAtAction(nameof(ObtenerTodas), new { id = nuevaTarea.Id }, nuevaTarea);
     }
 
@@ -69,6 +70,9 @@ public class TareasController : ControllerBase
 // DTO intermedio para recibir los datos de creación de forma limpia
 public class CrearTareaRequest
 {
+    // Id opcional generado por el cliente (Blazor) para su actualización optimista de UI;
+    // si viene, el servidor lo respeta en vez de generar uno propio.
+    public Guid? Id { get; set; }
     public string Titulo { get; set; } = string.Empty;
     public string? Descripcion { get; set; }
 }

@@ -20,6 +20,8 @@ internal static class DependencyInjection
         // 3. Inyectar Servicios Ocultos
         services.AddScoped<ITareaService, TareaService>();
         services.AddScoped<ISesionEnfoqueService, SesionEnfoqueService>();
+        services.AddScoped<IBloqueTiempoService, BloqueTiempoService>();
+        services.AddScoped<IEstadisticasService, EstadisticasService>();
 
         return services;
     }

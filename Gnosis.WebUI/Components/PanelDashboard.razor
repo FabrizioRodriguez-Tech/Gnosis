@@ -1,0 +1,142 @@
+@* Gnosis.WebUI/Components/PanelDashboard.razor *@
+@* Feature: Dashboard de productividad - sesiones/minutos de enfoque y tareas completadas por semana *@
+@inject Gnosis.WebUI.IEstadisticasHttpProxy EstadisticasProxy
+
+<div id="panel-dashboard"
+     class="panel-flotante panel-dashboard @(Minimizado ? "panel-minimizado borde-" + BordeMinimizado(PosX) : "")"
+     style="@EstiloPanel()">
+
+    <div class="panel-header" @onmousedown="OnMouseDownDashboard">
+        <span class="panel-titulo">Dashboard</span>
+        <button class="btn-minimizar-panel" @onclick="ToggleMinimizado" @onclick:stopPropagation="true">
+            @if (Minimizado)
+            {
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none"
+                     viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="20" x2="12" y2="10" />
+                    <line x1="18" y1="20" x2="18" y2="4" />
+                    <line x1="6" y1="20" x2="6" y2="16" />
+                </svg>
+            }
+            else
+            {
+                <span>&#x25BE;</span>
+            }
+        </button>
+    </div>
+
+    @if (!Minimizado)
+    {
+        <div class="panel-contenido dashboard-contenido">
+            @if (cargando)
+            {
+                <p class="text-white-50 small">Cargando estadísticas...</p>
+            }
+            else if (estadisticas == null)
+            {
+                <p class="text-white-50 small">No se pudieron cargar las estadísticas.</p>
+            }
+            else
+            {
+                <div class="dashboard-racha">
+                    <span class="dashboard-racha-numero">@estadisticas.RachaDiasActivos</span>
+                    <span class="dashboard-racha-texto">@(estadisticas.RachaDiasActivos == 1 ? "día seguido activo" : "días seguidos activo")</span>
+                </div>
+
+                <div class="dashboard-chart">
+                    @foreach (var dia in estadisticas.Dias)
+                    {
+                        var alturaPorcentaje = MaxMinutos == 0 ? 0 : (dia.MinutosEnfoque * 100 / MaxMinutos);
+                        <div class="dashboard-barra-col" title="@dia.MinutosEnfoque min · @dia.SesionesEnfoque sesiones · @dia.TareasCompletadas tareas">
+                            @if (dia.MinutosEnfoque > 0)
+                            {
+                                <span class="dashboard-barra-valor">@dia.MinutosEnfoque</span>
+                            }
+                            <div class="dashboard-barra-pista">
+                                <div class="dashboard-barra @(dia.Fecha.Date == DateTime.Today ? "dashboard-barra-hoy" : "")"
+                                     style="height: @(Math.Max(alturaPorcentaje, dia.MinutosEnfoque > 0 ? 4 : 0))%;"></div>
+                            </div>
+                            <span class="dashboard-dia-label">@dia.Fecha.ToString("ddd", CulturaEs)</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="dashboard-totales">
+                    <div class="dashboard-total-item">
+                        <span class="dashboard-total-numero">@estadisticas.TotalSesionesSemana</span>
+                        <span class="dashboard-total-label">sesiones</span>
+                    </div>
+                    <div class="dashboard-total-item">
+                        <span class="dashboard-total-numero">@estadisticas.TotalMinutosEnfoqueSemana</span>
+                        <span class="dashboard-total-label">min enfoque</span>
+                    </div>
+                    <div class="dashboard-total-item">
+                        <span class="dashboard-total-numero">@estadisticas.TotalTareasCompletadasSemana</span>
+                        <span class="dashboard-total-label">tareas</span>
+                    </div>
+                </div>
+
+                <button class="agenda-btn-hoy dashboard-btn-actualizar" @onclick="CargarEstadisticas">Actualizar</button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public double PosX { get; set; } = 460;
+    [Parameter] public double PosY { get; set; } = 480;
+    [Parameter] public bool Minimizado { get; set; } = false;
+    [Parameter] public EventCallback<bool> OnMinimizadoCambiado { get; set; }
+    [Parameter] public EventCallback<MouseEventArgs> OnArrastre { get; set; }
+
+    private static readonly System.Globalization.CultureInfo CulturaEs = new("es-ES");
+
+    private Gnosis.Business.Models.EstadisticasDashboardModel? estadisticas;
+    private bool cargando = true;
+
+    private int MaxMinutos
+    {
+        get
+        {
+            var dias = estadisticas?.Dias;
+            return dias != null && dias.Count > 0 ? Math.Max(1, dias.Max(d => d.MinutosEnfoque)) : 1;
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await CargarEstadisticas();
+
+    private async Task CargarEstadisticas()
+    {
+        cargando = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var hasta = DateTime.UtcNow.Date.AddDays(1);
+            var desde = hasta.AddDays(-7);
+            estadisticas = await EstadisticasProxy.ObtenerEstadisticasSemanaAsync(desde, hasta);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Gnosis] Error al cargar estadísticas: {ex.Message}");
+            estadisticas = null;
+        }
+        finally
+        {
+            cargando = false;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // ── Arrastre del panel / minimizado (igual que los demás paneles) ─
+    private async Task OnMouseDownDashboard(MouseEventArgs e) => await OnArrastre.InvokeAsync(e);
+
+    private async Task ToggleMinimizado()
+    {
+        Minimizado = !Minimizado;
+        await OnMinimizadoCambiado.InvokeAsync(Minimizado);
+    }
+
+    private string BordeMinimizado(double x) => x < 700 ? "izquierdo" : "derecho";
+    private string EstiloPanel() =>
+        Minimizado ? $"top: {PosY}px;" : $"left: {PosX}px; top: {PosY}px;";
+}

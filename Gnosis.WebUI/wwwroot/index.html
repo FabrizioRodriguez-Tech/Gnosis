@@ -25,6 +25,12 @@
     </div>
 
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+
+    <!-- ========================================== -->
+    <!-- NUEVO: Cargar sonidos después de Blazor    -->
+    <!-- ========================================== -->
+    <script src="js/sonidos.js"></script>
+
     <script>
         window.gnosis = {
             iniciarArrastre: function (panelId, dotnetRef, offsetX, offsetY, minimizado) {
@@ -33,7 +39,26 @@
 
                 el.style.transition = 'none';
 
+                // Distingue un clic simple de un arrastre real: solo se considera
+                // arrastre si el mouse se movió más allá de un pequeño umbral.
+                let seMovio = false;
+                let inicioX = null;
+                let inicioY = null;
+                const UMBRAL_ARRASTRE = 4;
+
                 function onMove(e) {
+                    if (inicioX === null) {
+                        inicioX = e.clientX;
+                        inicioY = e.clientY;
+                    }
+                    if (!seMovio) {
+                        const dx = e.clientX - inicioX;
+                        const dy = e.clientY - inicioY;
+                        if (Math.sqrt(dx * dx + dy * dy) > UMBRAL_ARRASTRE) {
+                            seMovio = true;
+                        }
+                    }
+
                     if (minimizado) {
                         const mitad = window.innerWidth / 2;
                         el.style.top = (e.clientY - offsetY) + 'px';
@@ -57,12 +82,23 @@
                     document.removeEventListener('mouseup', onUp);
                     el.style.transition = '';
 
+                    // Fue un clic, no un arrastre: no notificar nueva posición
+                    // (así el toggle de minimizar/expandir sigue funcionando).
+                    if (!seMovio) return;
+
                     const finalX = el.style.left === 'auto'
                         ? window.innerWidth - el.offsetWidth
                         : parseFloat(el.style.left);
                     const finalY = parseFloat(el.style.top);
 
-                    dotnetRef.invokeMethodAsync('ActualizarPosicion', panelId, finalX, finalY);
+                    // Notificar a Blazor la nueva posición
+                    if (dotnetRef) {
+                        try {
+                            dotnetRef.invokeMethodAsync('ActualizarPosicion', panelId, finalX, finalY);
+                        } catch (e) {
+                            console.log('Error al notificar posición:', e);
+                        }
+                    }
                 }
 
                 document.addEventListener('mousemove', onMove);
@@ -126,6 +162,29 @@
                     if (!window.gnosis.reproductorAudio.player || !window.gnosis.reproductorAudio.listo)
                         return false;
                     return window.gnosis.reproductorAudio.player.getPlayerState() === 1;
+                }
+            },
+
+            notificaciones: {
+                solicitarPermiso: async function () {
+                    try {
+                        if (!('Notification' in window)) return;
+                        if (Notification.permission === 'default') {
+                            await Notification.requestPermission();
+                        }
+                    } catch (e) {
+                        console.log('Error al solicitar permiso de notificaciones:', e);
+                    }
+                },
+
+                notificar: function (titulo, cuerpo) {
+                    try {
+                        if (!('Notification' in window)) return;
+                        if (Notification.permission !== 'granted') return;
+                        new Notification(titulo, { body: cuerpo, icon: 'icon-192.png' });
+                    } catch (e) {
+                        console.log('Error al mostrar notificacion:', e);
+                    }
                 }
             }
         };

@@ -1,0 +1,129 @@
+﻿@* Gnosis.WebUI/Components/PanelIA.razor *@
+@* Code Smell corregido: Extract Class — lógica de IA extraída de Home.razor (God Class) *@
+@inject GnosisIAService IAService
+@inject IJSRuntime JS
+@using Gnosis.Business.Models
+@using Gnosis.WebUI
+
+<div class="ia-barra">
+    @if (iaExpandida)
+    {
+        <div class="ia-chat-wrapper">
+            <div class="ia-chat-header">
+                <span class="ia-chat-titulo">Gnosis IA</span>
+                <button class="ia-btn-cerrar" @onclick="() => iaExpandida = false">&#x2715;</button>
+            </div>
+
+            <div class="ia-chat-mensajes" id="ia-mensajes">
+                @foreach (var msg in iaMensajes)
+                {
+                    <div class="ia-mensaje @(msg.EsUsuario ? "ia-msg-usuario" : "ia-msg-ia")">
+                        <div class="ia-msg-burbuja">@msg.Texto</div>
+                        @if (!msg.EsUsuario && msg.TeniasTareas)
+                        {
+                            <div class="ia-msg-etiqueta">Tareas creadas en tu lista</div>
+                        }
+                    </div>
+                }
+                @if (iaCargando)
+                {
+                    <div class="ia-mensaje ia-msg-ia">
+                        <div class="ia-msg-burbuja ia-pensando">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="ia-chat-input-row">
+                <input type="text"
+                       class="ia-input"
+                       placeholder="Describe tu tarea o cuentame en que estas perdido..."
+                       @bind="iaMensajeActual"
+                       @onkeyup="HandleIAKeyUp"
+                       disabled="@iaCargando" />
+                <button class="ia-btn-enviar" @onclick="EnviarMensajeIA" disabled="@iaCargando">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"
+                         viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13" />
+                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    }
+
+    <div class="ia-barra-fija" @onclick="() => iaExpandida = !iaExpandida">
+        <div class="ia-barra-icono">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"
+                 viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+        </div>
+        <span class="ia-barra-texto">Gnosis IA &mdash; @(iaExpandida ? "cerrar" : "preguntame algo")</span>
+    </div>
+</div>
+
+@code {
+    // ── Parámetro: callback para cuando la IA crea tareas ────────
+    [Parameter] public EventCallback<List<TareaModel>> OnTareasCreadas { get; set; }
+
+    // ── Estado interno ───────────────────────────────────────────
+    private bool iaExpandida = false;
+    private bool iaCargando = false;
+    private string iaMensajeActual = string.Empty;
+
+    private record MensajeChat(string Texto, bool EsUsuario, bool TeniasTareas = false);
+    private List<MensajeChat> iaMensajes = new();
+
+    // ── Lógica de chat ───────────────────────────────────────────
+    private async Task EnviarMensajeIA()
+    {
+        if (string.IsNullOrWhiteSpace(iaMensajeActual) || iaCargando) return;
+
+        var texto = iaMensajeActual.Trim();
+        iaMensajeActual = string.Empty;
+        iaCargando = true;
+        iaMensajes.Add(new MensajeChat(texto, EsUsuario: true));
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var historial = iaMensajes
+                .SkipLast(1)
+                .Select(m => new MensajeHistorial
+                {
+                    Rol = m.EsUsuario ? "user" : "assistant",
+                    Contenido = m.Texto
+                });
+
+            var respuesta = await IAService.ConsultarAsync(texto, historial);
+
+            // Si la IA creó tareas, se notifica a Home.razor via callback
+            if (respuesta.CreoTareas && respuesta.Tareas != null)
+                await OnTareasCreadas.InvokeAsync(respuesta.Tareas);
+
+            iaMensajes.Add(new MensajeChat(respuesta.Texto, EsUsuario: false, TeniasTareas: respuesta.CreoTareas));
+        }
+        catch (Exception ex)
+        {
+            iaMensajes.Add(new MensajeChat($"Error: {ex.Message}", EsUsuario: false));
+        }
+        finally
+        {
+            iaCargando = false;
+            await InvokeAsync(StateHasChanged);
+            try
+            {
+                await JS.InvokeVoidAsync("eval",
+                    "var el = document.getElementById('ia-mensajes'); if(el) el.scrollTop = el.scrollHeight;");
+            }
+            catch { }
+        }
+    }
+
+    private async Task HandleIAKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await EnviarMensajeIA();
+    }
+}

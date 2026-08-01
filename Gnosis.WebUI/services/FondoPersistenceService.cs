@@ -1,7 +1,7 @@
 ﻿// Ubicación real: Gnosis.WebUI/FondoPersistenceService.cs
 using Microsoft.JSInterop;
 
-namespace Gnosis.WebUI
+namespace Gnosis.WebUI.services
 {
     public class FondoPersistenceService
     {
