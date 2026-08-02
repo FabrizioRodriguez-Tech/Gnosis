@@ -6,6 +6,11 @@ namespace Gnosis.Domain.Entities
     public class Tarea
     {
         public Guid Id { get; set; } = Guid.NewGuid();
+
+        // Dueño de la tarea. Toda consulta/escritura debe filtrar por este campo
+        // para que cada usuario solo vea sus propios datos.
+        public Guid UsuarioId { get; set; }
+
         public string Titulo { get; set; } = string.Empty;
         public string? Descripcion { get; set; }
         public bool IsCompletada { get; set; }

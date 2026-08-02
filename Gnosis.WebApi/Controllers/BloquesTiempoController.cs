@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Gnosis.Business.Services;
 using Gnosis.Business.Models;
@@ -6,6 +7,7 @@ namespace Gnosis.WebApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class BloquesTiempoController : ControllerBase
 {
     private readonly IBloqueTiempoService _bloqueTiempoService;
@@ -27,7 +29,7 @@ public class BloquesTiempoController : ControllerBase
             var inicio = desde ?? DateTime.UtcNow.Date.AddDays(-7);
             var fin = hasta ?? DateTime.UtcNow.Date.AddDays(7);
 
-            var bloques = await _bloqueTiempoService.ObtenerPorRangoAsync(inicio, fin);
+            var bloques = await _bloqueTiempoService.ObtenerPorRangoAsync(User.ObtenerUsuarioId(), inicio, fin);
             return Ok(bloques);
         }
         catch (Exception ex)
@@ -47,7 +49,7 @@ public class BloquesTiempoController : ControllerBase
 
         try
         {
-            var creado = await _bloqueTiempoService.CrearAsync(nuevoBloque);
+            var creado = await _bloqueTiempoService.CrearAsync(User.ObtenerUsuarioId(), nuevoBloque);
             return CreatedAtAction(nameof(ObtenerPorRango), new { id = creado.Id }, creado);
         }
         catch (ArgumentException ex)
@@ -71,7 +73,7 @@ public class BloquesTiempoController : ControllerBase
 
         try
         {
-            var exito = await _bloqueTiempoService.ActualizarAsync(bloqueActualizado);
+            var exito = await _bloqueTiempoService.ActualizarAsync(User.ObtenerUsuarioId(), bloqueActualizado);
             if (!exito)
                 return NotFound("El bloque de tiempo especificado no existe.");
 
@@ -95,7 +97,7 @@ public class BloquesTiempoController : ControllerBase
     {
         try
         {
-            var exito = await _bloqueTiempoService.EliminarAsync(id);
+            var exito = await _bloqueTiempoService.EliminarAsync(User.ObtenerUsuarioId(), id);
             if (!exito)
                 return NotFound("El bloque de tiempo especificado no existe.");
 

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Gnosis.Business.Services;
 
@@ -5,6 +6,7 @@ namespace Gnosis.WebApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class SesionesEnfoqueController : ControllerBase
 {
     private readonly ISesionEnfoqueService _sesionEnfoqueService;
@@ -26,7 +28,7 @@ public class SesionesEnfoqueController : ControllerBase
 
         try
         {
-            var sesion = await _sesionEnfoqueService.RegistrarSesionCompletadaAsync(request.TipoSesion, request.DuracionMinutos);
+            var sesion = await _sesionEnfoqueService.RegistrarSesionCompletadaAsync(User.ObtenerUsuarioId(), request.TipoSesion, request.DuracionMinutos);
             return Ok(sesion);
         }
         catch (Exception ex)

@@ -8,10 +8,10 @@ namespace Gnosis.Business.Services
 {
     public interface ITareaService
     {
-        Task<IEnumerable<TareaModel>> ObtenerTareasPrincipalesAsync();
-        Task<TareaModel> CrearTareaRaizAsync(Guid? id, string titulo, string? descripcion);
-        Task<TareaModel> DesglosarTareaAsync(Guid tareaPadreId, string tituloSubtarea);
-        Task CambiarEstadoCompletadoAsync(Guid tareaId, bool completada);
-        Task<bool> ActualizarEstadoTareaAsync(Guid id, bool isCompletada);
+        Task<IEnumerable<TareaModel>> ObtenerTareasPrincipalesAsync(Guid usuarioId);
+        Task<TareaModel> CrearTareaRaizAsync(Guid usuarioId, Guid? id, string titulo, string? descripcion, Guid? tareaPadreId = null);
+        Task<TareaModel> DesglosarTareaAsync(Guid usuarioId, Guid tareaPadreId, string tituloSubtarea);
+        Task<bool> ActualizarEstadoTareaAsync(Guid usuarioId, Guid id, bool isCompletada);
+        Task<bool> EliminarTareaAsync(Guid usuarioId, Guid id);
     }
 }

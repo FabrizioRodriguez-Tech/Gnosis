@@ -13,10 +13,10 @@ internal class BloqueTiempoService(
     IRepository<BloqueTiempo> bloqueRepository,
     IRepository<Tarea> tareaRepository) : IBloqueTiempoService
 {
-    public async Task<IEnumerable<BloqueTiempoModel>> ObtenerPorRangoAsync(DateTime desde, DateTime hasta)
+    public async Task<IEnumerable<BloqueTiempoModel>> ObtenerPorRangoAsync(Guid usuarioId, DateTime desde, DateTime hasta)
     {
-        var bloques = await bloqueRepository.GetAllAsync();
-        var tareas = await tareaRepository.GetAllAsync();
+        var bloques = (await bloqueRepository.GetAllAsync()).Where(b => b.UsuarioId == usuarioId);
+        var tareas = (await tareaRepository.GetAllAsync()).Where(t => t.UsuarioId == usuarioId);
         var tareasPorId = tareas.ToDictionary(t => t.Id, t => t.Titulo);
 
         return bloques
@@ -25,14 +25,24 @@ internal class BloqueTiempoService(
             .Select(b => MapearAModelo(b, tareasPorId));
     }
 
-    public async Task<BloqueTiempoModel> CrearAsync(BloqueTiempoModel nuevo)
+    public async Task<BloqueTiempoModel> CrearAsync(Guid usuarioId, BloqueTiempoModel nuevo)
     {
         if (nuevo.FechaFin <= nuevo.FechaInicio)
             throw new ArgumentException("La fecha de fin debe ser posterior a la fecha de inicio.");
 
+        // La tarea vinculada, si viene, tiene que existir Y ser del mismo usuario (si no,
+        // se podría enlazar un bloque a una tarea ajena, o a un Id que nunca se persistió).
+        if (nuevo.TareaId.HasValue)
+        {
+            var tareaVinculada = await tareaRepository.GetByIdAsync(nuevo.TareaId.Value);
+            if (tareaVinculada == null || tareaVinculada.UsuarioId != usuarioId)
+                throw new ArgumentException("La tarea vinculada no existe.");
+        }
+
         var entidad = new BloqueTiempo
         {
             Id = Guid.NewGuid(),
+            UsuarioId = usuarioId,
             Titulo = nuevo.Titulo,
             Descripcion = nuevo.Descripcion,
             FechaInicio = ComoUtc(nuevo.FechaInicio),
@@ -50,13 +60,20 @@ internal class BloqueTiempoService(
         return MapearAModelo(entidad, tareaTitulo);
     }
 
-    public async Task<bool> ActualizarAsync(BloqueTiempoModel actualizado)
+    public async Task<bool> ActualizarAsync(Guid usuarioId, BloqueTiempoModel actualizado)
     {
         if (actualizado.FechaFin <= actualizado.FechaInicio)
             throw new ArgumentException("La fecha de fin debe ser posterior a la fecha de inicio.");
 
         var existente = await bloqueRepository.GetByIdAsync(actualizado.Id);
-        if (existente == null) return false;
+        if (existente == null || existente.UsuarioId != usuarioId) return false;
+
+        if (actualizado.TareaId.HasValue)
+        {
+            var tareaVinculada = await tareaRepository.GetByIdAsync(actualizado.TareaId.Value);
+            if (tareaVinculada == null || tareaVinculada.UsuarioId != usuarioId)
+                throw new ArgumentException("La tarea vinculada no existe.");
+        }
 
         existente.Titulo = actualizado.Titulo;
         existente.Descripcion = actualizado.Descripcion;
@@ -69,10 +86,10 @@ internal class BloqueTiempoService(
         return true;
     }
 
-    public async Task<bool> EliminarAsync(Guid id)
+    public async Task<bool> EliminarAsync(Guid usuarioId, Guid id)
     {
         var existente = await bloqueRepository.GetByIdAsync(id);
-        if (existente == null) return false;
+        if (existente == null || existente.UsuarioId != usuarioId) return false;
 
         await bloqueRepository.EliminarAsync(id);
         return true;

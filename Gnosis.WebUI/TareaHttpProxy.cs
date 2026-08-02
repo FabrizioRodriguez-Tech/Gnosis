@@ -41,7 +41,9 @@ namespace Gnosis.WebUI
 
         public async Task ActualizarEstadoTareaAsync(Guid id, bool isCompletada)
         {
-            var respuesta = await _httpClient.PutAsJsonAsync($"api/Tareas/{id}/estado", isCompletada);
+            // El servidor espera { "isCompletada": true } (ActualizarEstadoRequest), no un booleano
+            // suelto. Antes se mandaba el bool directo y la API respondía 400 Bad Request siempre.
+            var respuesta = await _httpClient.PutAsJsonAsync($"api/Tareas/{id}/estado", new { IsCompletada = isCompletada });
             respuesta.EnsureSuccessStatusCode();
         }
 

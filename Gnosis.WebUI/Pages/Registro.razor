@@ -1,0 +1,90 @@
+@page "/registro"
+@inject IAuthHttpProxy AuthProxy
+@inject NavigationManager NavManager
+
+<div class="auth-wrapper">
+    <div class="auth-card">
+        <h1 class="auth-titulo">Gnosis</h1>
+        <p class="auth-subtitulo">Crea tu cuenta para empezar a usar Gnosis.</p>
+
+        @if (!string.IsNullOrEmpty(mensajeExito))
+        {
+            <p class="text-success small">@mensajeExito</p>
+        }
+
+        @if (!string.IsNullOrEmpty(error))
+        {
+            <p class="text-danger small">@error</p>
+        }
+
+        @if (!registroCompletado)
+        {
+            <div class="auth-campo">
+                <label>Nombre (opcional)</label>
+                <input type="text" class="form-control" @bind="nombreVisible" disabled="@cargando" />
+            </div>
+
+            <div class="auth-campo">
+                <label>Correo</label>
+                <input type="email" class="form-control" @bind="email" disabled="@cargando" />
+            </div>
+
+            <div class="auth-campo">
+                <label>Contraseña</label>
+                <input type="password" class="form-control" @bind="password" @onkeyup="HandleKeyUp" disabled="@cargando" />
+                <span class="auth-hint">Mínimo 6 caracteres, con mayúscula, minúscula y número.</span>
+            </div>
+
+            <button class="btn btn-primary auth-btn" @onclick="RegistrarAsync" disabled="@cargando">
+                @(cargando ? "Creando cuenta..." : "Crear cuenta")
+            </button>
+        }
+        else
+        {
+            <a class="btn btn-primary auth-btn" href="/login">Ir a iniciar sesión</a>
+        }
+
+        <p class="auth-link">
+            ¿Ya tienes cuenta? <a href="/login">Inicia sesión</a>
+        </p>
+    </div>
+</div>
+
+@code {
+    private string nombreVisible = string.Empty;
+    private string email = string.Empty;
+    private string password = string.Empty;
+    private string? error;
+    private string? mensajeExito;
+    private bool cargando;
+    private bool registroCompletado;
+
+    private async Task HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await RegistrarAsync();
+    }
+
+    private async Task RegistrarAsync()
+    {
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            error = "Ingresa tu correo y tu contraseña.";
+            return;
+        }
+
+        cargando = true;
+        error = null;
+        var resultado = await AuthProxy.RegistrarAsync(email.Trim(), password, string.IsNullOrWhiteSpace(nombreVisible) ? null : nombreVisible.Trim());
+        cargando = false;
+
+        if (!resultado.Exito)
+        {
+            error = resultado.Error ?? "No se pudo crear la cuenta.";
+            return;
+        }
+
+        // Ya no se loguea de una vez: la cuenta queda pendiente hasta que confirme el correo.
+        registroCompletado = true;
+        mensajeExito = resultado.Mensaje ?? "Cuenta creada. Revisa tu correo para confirmarla.";
+    }
+}

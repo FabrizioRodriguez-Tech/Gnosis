@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Gnosis.Business.Models;
@@ -17,10 +17,11 @@ namespace Gnosis.Business.Services
             _sesionRepository = sesionRepository;
         }
 
-        public async Task<SesionEnfoque> IniciarSesionAsync(string tipoSesion)
+        public async Task<SesionEnfoque> IniciarSesionAsync(Guid usuarioId, string tipoSesion)
         {
             var nuevaSesion = new SesionEnfoque
             {
+                UsuarioId = usuarioId,
                 TipoSesion = tipoSesion,
                 FechaInicio = DateTime.UtcNow
             };
@@ -35,14 +36,14 @@ namespace Gnosis.Business.Services
             if (sesion == null) throw new KeyNotFoundException("La sesión de enfoque no existe.");
 
             sesion.FechaFin = DateTime.UtcNow;
-            
+
             sesion.DuracionMinutos = (int)(sesion.FechaFin.Value - sesion.FechaInicio).TotalMinutes;
 
             await _sesionRepository.ActualizarAsync(sesion);
             return sesion;
         }
 
-        public async Task<SesionEnfoqueModel> RegistrarSesionCompletadaAsync(string tipoSesion, int duracionMinutos)
+        public async Task<SesionEnfoqueModel> RegistrarSesionCompletadaAsync(Guid usuarioId, string tipoSesion, int duracionMinutos)
         {
             // Ambas fechas se generan en el servidor a partir de UtcNow, así quedan con Kind=Utc
             // (obligatorio para la columna "timestamp with time zone" de Postgres).
@@ -51,6 +52,7 @@ namespace Gnosis.Business.Services
 
             var sesion = new SesionEnfoque
             {
+                UsuarioId = usuarioId,
                 FechaInicio = inicio,
                 FechaFin = fin,
                 DuracionMinutos = duracionMinutos,

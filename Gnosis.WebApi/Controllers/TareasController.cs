@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Gnosis.Business.Services;
 using Gnosis.Business.Models;
 
@@ -6,6 +7,7 @@ namespace Gnosis.WebApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class TareasController : ControllerBase
 {
     private readonly ITareaService _tareaService;
@@ -16,14 +18,14 @@ public class TareasController : ControllerBase
     }
 
     /// <summary>
-    /// Obtiene las tareas principales u objetivos raíz del sistema.
+    /// Obtiene las tareas principales u objetivos raíz del usuario autenticado.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> ObtenerTodas()
     {
         try
         {
-            var tareas = await _tareaService.ObtenerTareasPrincipalesAsync();
+            var tareas = await _tareaService.ObtenerTareasPrincipalesAsync(User.ObtenerUsuarioId());
             return Ok(tareas);
         }
         catch (Exception ex)
@@ -41,8 +43,15 @@ public class TareasController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Titulo))
             return BadRequest("El título es obligatorio.");
 
-        var nuevaTarea = await _tareaService.CrearTareaRaizAsync(request.Id, request.Titulo, request.Descripcion);
-        return CreatedAtAction(nameof(ObtenerTodas), new { id = nuevaTarea.Id }, nuevaTarea);
+        try
+        {
+            var nuevaTarea = await _tareaService.CrearTareaRaizAsync(User.ObtenerUsuarioId(), request.Id, request.Titulo, request.Descripcion, request.TareaPadreId);
+            return CreatedAtAction(nameof(ObtenerTodas), new { id = nuevaTarea.Id }, nuevaTarea);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Error interno en el servidor: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -53,7 +62,28 @@ public class TareasController : ControllerBase
     {
         try
         {
-            var exito = await _tareaService.ActualizarEstadoTareaAsync(id, request.IsCompletada);
+            var exito = await _tareaService.ActualizarEstadoTareaAsync(User.ObtenerUsuarioId(), id, request.IsCompletada);
+
+            if (!exito)
+                return NotFound("La tarea o subtarea especificada no existe.");
+
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Error interno en el servidor: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Elimina una tarea o subtarea. Si es una tarea raíz con subtareas, estas se eliminan en cascada.
+    /// </summary>
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Eliminar(Guid id)
+    {
+        try
+        {
+            var exito = await _tareaService.EliminarTareaAsync(User.ObtenerUsuarioId(), id);
 
             if (!exito)
                 return NotFound("La tarea o subtarea especificada no existe.");
@@ -75,6 +105,9 @@ public class CrearTareaRequest
     public Guid? Id { get; set; }
     public string Titulo { get; set; } = string.Empty;
     public string? Descripcion { get; set; }
+    // Antes no existía: el cliente ya enviaba este dato (TareaModel.TareaPadreId) pero el DTO
+    // lo descartaba silenciosamente, así que ninguna subtarea quedaba ligada a su padre en la BD.
+    public Guid? TareaPadreId { get; set; }
 }
 
 // DTO intermedio para recibir la actualización de estado de forma limpia

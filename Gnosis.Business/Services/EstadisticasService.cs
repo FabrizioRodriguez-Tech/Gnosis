@@ -14,10 +14,10 @@ internal class EstadisticasService(
     IRepository<SesionEnfoque> sesionRepository,
     IRepository<Tarea> tareaRepository) : IEstadisticasService
 {
-    public async Task<EstadisticasDashboardModel> ObtenerEstadisticasSemanaAsync(DateTime desde, DateTime hasta)
+    public async Task<EstadisticasDashboardModel> ObtenerEstadisticasSemanaAsync(Guid usuarioId, DateTime desde, DateTime hasta)
     {
-        var todasSesiones = (await sesionRepository.GetAllAsync()).ToList();
-        var todasTareas = (await tareaRepository.GetAllAsync()).ToList();
+        var todasSesiones = (await sesionRepository.GetAllAsync()).Where(s => s.UsuarioId == usuarioId).ToList();
+        var todasTareas = (await tareaRepository.GetAllAsync()).Where(t => t.UsuarioId == usuarioId).ToList();
 
         // Solo las sesiones de tipo "Enfoque" cuentan como tiempo de trabajo real (no los descansos)
         var sesionesEnfoque = todasSesiones.Where(s => s.TipoSesion == "Enfoque" && s.FechaFin.HasValue).ToList();

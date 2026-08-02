@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,10 +11,12 @@ namespace Gnosis.Business.Services;
 // Usamos el constructor principal de C# para simplificar el código e inyectar el repositorio directamente
 internal class TareaService(IRepository<Tarea> tareaRepository) : ITareaService
 {
-    // 1. Obtener tareas principales (raíz), con sus subtareas anidadas
-    public async Task<IEnumerable<TareaModel>> ObtenerTareasPrincipalesAsync()
+    // 1. Obtener tareas principales (raíz) del usuario autenticado, con sus subtareas anidadas
+    public async Task<IEnumerable<TareaModel>> ObtenerTareasPrincipalesAsync(Guid usuarioId)
     {
-        var todas = (await tareaRepository.GetAllAsync()).ToList();
+        var todas = (await tareaRepository.GetAllAsync())
+            .Where(t => t.UsuarioId == usuarioId)
+            .ToList();
 
         var subtareasPorPadre = todas
             .Where(t => t.TareaPadreId.HasValue)
@@ -48,15 +50,19 @@ internal class TareaService(IRepository<Tarea> tareaRepository) : ITareaService
         return modelo;
     }
 
-    public async Task<TareaModel> CrearTareaRaizAsync(Guid? id, string titulo, string? descripcion)
+    public async Task<TareaModel> CrearTareaRaizAsync(Guid usuarioId, Guid? id, string titulo, string? descripcion, Guid? tareaPadreId = null)
     {
         var nuevaTarea = new Tarea
         {
             // Respeta el Id generado por el cliente (usado para la actualización optimista de la UI)
             // en vez de generar uno nuevo, para que ambos lados queden sincronizados.
             Id = id ?? Guid.NewGuid(),
+            UsuarioId = usuarioId,
             Titulo = titulo,
-            Descripcion = descripcion
+            Descripcion = descripcion,
+            // Si viene un padre, se persiste como subtarea; antes se ignoraba este dato y toda
+            // subtarea quedaba guardada como tarea raíz (se "perdía" su padre al recargar la página).
+            TareaPadreId = tareaPadreId
         };
 
         await tareaRepository.AgregarAsync(nuevaTarea);
@@ -64,12 +70,15 @@ internal class TareaService(IRepository<Tarea> tareaRepository) : ITareaService
         return MapearATareaModel(nuevaTarea);
     }
 
-    public async Task<TareaModel> DesglosarTareaAsync(Guid tareaPadreId, string tituloSubtarea)
+    public async Task<TareaModel> DesglosarTareaAsync(Guid usuarioId, Guid tareaPadreId, string tituloSubtarea)
     {
         var subtarea = new Tarea
         {
             Id = Guid.NewGuid(),
-            Titulo = tituloSubtarea
+            UsuarioId = usuarioId,
+            Titulo = tituloSubtarea,
+            // Antes no se asignaba: la subtarea se guardaba como tarea raíz, sin relación con su padre.
+            TareaPadreId = tareaPadreId
         };
 
         await tareaRepository.AgregarAsync(subtarea);
@@ -77,28 +86,33 @@ internal class TareaService(IRepository<Tarea> tareaRepository) : ITareaService
         return new TareaModel
         {
             Id = subtarea.Id,
-            Titulo = subtarea.Titulo
+            Titulo = subtarea.Titulo,
+            TareaPadreId = subtarea.TareaPadreId
         };
     }
 
-    public async Task CambiarEstadoCompletadoAsync(Guid tareaId, bool completada)
+    public async Task<bool> ActualizarEstadoTareaAsync(Guid usuarioId, Guid id, bool isCompletada)
     {
-        await Task.CompletedTask;
-    }
-
-    public async Task<bool> ActualizarEstadoTareaAsync(Guid id, bool isCompletada)
-    {
-        // Buscamos la tarea usando el método que sí existe en tu interfaz
         var tarea = await tareaRepository.GetByIdAsync(id);
-        if (tarea == null) return false;
+        // No solo "existe": tiene que ser del usuario que hizo la petición, si no cualquiera
+        // podría cambiar el estado de tareas ajenas adivinando su Id.
+        if (tarea == null || tarea.UsuarioId != usuarioId) return false;
 
         tarea.IsCompletada = isCompletada;
         // Registra cuándo se completó (para el dashboard); si se destilda, se limpia.
         tarea.FechaCompletada = isCompletada ? DateTime.UtcNow : null;
 
-        // Corregido: usamos ActualizarAsync como está definido en tu IRepository
         await tareaRepository.ActualizarAsync(tarea);
 
+        return true;
+    }
+
+    public async Task<bool> EliminarTareaAsync(Guid usuarioId, Guid id)
+    {
+        var tarea = await tareaRepository.GetByIdAsync(id);
+        if (tarea == null || tarea.UsuarioId != usuarioId) return false;
+
+        await tareaRepository.EliminarAsync(id);
         return true;
     }
 }

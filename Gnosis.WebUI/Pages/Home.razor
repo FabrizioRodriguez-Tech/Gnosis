@@ -1,4 +1,5 @@
 ﻿@page "/"
+@attribute [Authorize]
 @* REFACTORIZACIÓN: Extract Class aplicado sobre God Class *@
 @inject Gnosis.WebUI.TemporizadorPomodoro Pomodoro
 @inject Gnosis.WebUI.ITareaHttpProxy TareaProxy
@@ -7,6 +8,8 @@
 @inject IJSRuntime JS
 @inject Gnosis.WebUI.Services.NotificacionService Notificaciones
 @inject Gnosis.WebUI.ISesionEnfoqueHttpProxy SesionProxy
+@inject Gnosis.WebUI.services.TokenStorageService TokenStorage
+@inject AuthenticationStateProvider AuthStateProvider
 @using Gnosis.Business.Models
 @using Gnosis.WebUI.Components
 @using Gnosis.WebUI.Services
@@ -36,6 +39,15 @@ else
     </div>
 
     <SelectorFondos />
+
+    <div style="position:fixed; top:14px; right:14px; z-index:50; display:flex; align-items:center; gap:10px; background:rgba(30,37,48,0.85); backdrop-filter: blur(10px); padding:6px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.12);">
+        <AuthorizeView>
+            <Authorized>
+                <span style="color:#fff; font-size:0.78rem; opacity:0.85;">@context.User.FindFirst("email")?.Value</span>
+                <button class="btn btn-sm btn-outline-light" style="font-size:0.75rem; padding:2px 8px;" @onclick="CerrarSesionAsync">Cerrar sesión</button>
+            </Authorized>
+        </AuthorizeView>
+    </div>
 
     <!-- PANEL POMODORO -->
     <div id="panel-pomodoro"
@@ -215,7 +227,8 @@ else
                  TareasDisponibles="tareas" />
 
     <!-- PANEL DASHBOARD -->
-    <PanelDashboard PosX="dashboardX"
+    <PanelDashboard @ref="panelDashboardRef"
+                     PosX="dashboardX"
                      PosY="dashboardY"
                      Minimizado="dashboardMinimizado"
                      OnMinimizadoCambiado="v => dashboardMinimizado = v"
@@ -227,6 +240,10 @@ else
 
 @code {
     private DotNetObjectReference<Home>? _dotnetRef;
+
+    // Referencia al panel del Dashboard para poder refrescarlo cuando termina un Pomodoro
+    // o se marca una tarea, sin depender de que el usuario le dé clic a "Actualizar".
+    private PanelDashboard? panelDashboardRef;
 
     // ── Estado paneles ───────────────────────────────────────────
     private bool pomodoroMinimizado = false;
@@ -465,6 +482,9 @@ else
                 try
                 {
                     await SesionProxy.RegistrarSesionAsync(modoTerminado.Value.ToString(), duracionMinutos);
+                    // La sesión ya quedó guardada: refrescamos el Dashboard para que la racha,
+                    // los minutos de enfoque y el total de sesiones se vean al día sin recargar la página.
+                    if (panelDashboardRef != null) await panelDashboardRef.RecargarAsync();
                 }
                 catch (Exception exSesion)
                 {
@@ -488,6 +508,14 @@ else
     }
 
     private void ToggleConfiguracion() => mostrarConfiguracion = !mostrarConfiguracion;
+
+    private async Task CerrarSesionAsync()
+    {
+        await TokenStorage.BorrarTokenAsync();
+        if (AuthStateProvider is Gnosis.WebUI.services.JwtAuthenticationStateProvider proveedor)
+            proveedor.NotificarCambioDeSesion();
+        NavManager.NavigateTo("/login", forceLoad: true);
+    }
 
     private async Task CargarTareas()
     {
@@ -558,7 +586,16 @@ else
     private async Task CambiarEstadoTarea(TareaModel tarea)
     {
         tarea.IsCompletada = !tarea.IsCompletada;
-        if (TareaProxy != null) await TareaProxy.ActualizarEstadoTareaAsync(tarea.Id, tarea.IsCompletada);
+        try
+        {
+            if (TareaProxy != null) await TareaProxy.ActualizarEstadoTareaAsync(tarea.Id, tarea.IsCompletada);
+            // Completar/descompletar una tarea cambia el conteo de "tareas completadas" del Dashboard.
+            if (panelDashboardRef != null) await panelDashboardRef.RecargarAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Gnosis] Error al actualizar estado de tarea: {ex.Message}");
+        }
     }
 
     private async Task EliminarTareaPadre(TareaModel padre)

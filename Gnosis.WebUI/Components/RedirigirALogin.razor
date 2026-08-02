@@ -1,0 +1,11 @@
+@* Se muestra cuando <AuthorizeRouteView> determina que la ruta actual requiere sesión y no la hay.
+   No pinta nada visible: solo redirige de inmediato a /login. *@
+@inject NavigationManager NavManager
+
+@code {
+    protected override void OnInitialized()
+    {
+        if (!NavManager.Uri.EndsWith("/login") && !NavManager.Uri.EndsWith("/registro"))
+            NavManager.NavigateTo("/login");
+    }
+}

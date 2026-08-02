@@ -76,7 +76,7 @@
                     </div>
                 </div>
 
-                <button class="agenda-btn-hoy dashboard-btn-actualizar" @onclick="CargarEstadisticas">Actualizar</button>
+                <button class="agenda-btn-hoy dashboard-btn-actualizar" @onclick="() => CargarEstadisticas()">Actualizar</button>
             }
         </div>
     }
@@ -105,10 +105,20 @@
 
     protected override async Task OnInitializedAsync() => await CargarEstadisticas();
 
-    private async Task CargarEstadisticas()
+    // Punto de entrada público: Home.razor lo llama (via @ref) cuando termina una sesión de
+    // Pomodoro o se marca una tarea, para que el Dashboard refleje el cambio sin que el usuario
+    // tenga que darle clic manualmente a "Actualizar" ni recargar la página.
+    // mostrarCargando=false: no pasa por el estado "Cargando estadísticas...", así el refresco
+    // automático solo actualiza los números en su lugar en vez de hacer parpadear el panel.
+    public async Task RecargarAsync() => await CargarEstadisticas(mostrarCargando: false);
+
+    private async Task CargarEstadisticas(bool mostrarCargando = true)
     {
-        cargando = true;
-        await InvokeAsync(StateHasChanged);
+        if (mostrarCargando)
+        {
+            cargando = true;
+            await InvokeAsync(StateHasChanged);
+        }
         try
         {
             var hasta = DateTime.UtcNow.Date.AddDays(1);

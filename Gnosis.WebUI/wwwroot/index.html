@@ -32,7 +32,10 @@
     <script src="js/sonidos.js"></script>
 
     <script>
-        window.gnosis = {
+        // No reemplazamos window.gnosis (eso borraría reproducirSonido/reproducirTick/reproducirAlarma
+        // que sonidos.js ya le agregó arriba); lo extendemos en su lugar.
+        window.gnosis = window.gnosis || {};
+        Object.assign(window.gnosis, {
             iniciarArrastre: function (panelId, dotnetRef, offsetX, offsetY, minimizado) {
                 const el = document.getElementById(panelId);
                 if (!el) return;
@@ -187,7 +190,7 @@
                     }
                 }
             }
-        };
+        });
 
         window.onYouTubeIframeAPIReady = function () { };
     </script>

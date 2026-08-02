@@ -6,6 +6,6 @@ namespace Gnosis.Business.Services
 {
     public interface IEstadisticasService
     {
-        Task<EstadisticasDashboardModel> ObtenerEstadisticasSemanaAsync(DateTime desde, DateTime hasta);
+        Task<EstadisticasDashboardModel> ObtenerEstadisticasSemanaAsync(Guid usuarioId, DateTime desde, DateTime hasta);
     }
 }

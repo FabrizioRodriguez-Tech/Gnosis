@@ -1,9 +1,15 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Gnosis.Domain.Entities;
+using Gnosis.Infrastructure.Identity;
 
 namespace Gnosis.Infrastructure;
 
-public class GnosisDbContext(DbContextOptions<GnosisDbContext> options) : DbContext(options)
+// Hereda de IdentityDbContext para traer las tablas de cuentas (AspNetUsers, AspNetRoles, etc.)
+// en la misma base de datos que el resto de Gnosis, en vez de un DbContext separado.
+public class GnosisDbContext(DbContextOptions<GnosisDbContext> options)
+    : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
     public DbSet<Tarea> Tareas => Set<Tarea>();
     public DbSet<SesionEnfoque> SesionesEnfoque => Set<SesionEnfoque>();
@@ -20,6 +26,9 @@ public class GnosisDbContext(DbContextOptions<GnosisDbContext> options) : DbCont
         {
             entity.ToTable("Tareas");
             entity.HasKey(t => t.Id);
+
+            entity.Property(t => t.UsuarioId).IsRequired();
+            entity.HasIndex(t => t.UsuarioId);
 
             entity.Property(t => t.Titulo)
                 .IsRequired()
@@ -49,6 +58,9 @@ public class GnosisDbContext(DbContextOptions<GnosisDbContext> options) : DbCont
             entity.ToTable("SesionesEnfoque");
             entity.HasKey(s => s.Id);
 
+            entity.Property(s => s.UsuarioId).IsRequired();
+            entity.HasIndex(s => s.UsuarioId);
+
             // Mapeamos únicamente las propiedades de auditoría/tiempo base que tiene tu objeto
             entity.Property(s => s.FechaInicio)
                 .IsRequired();
@@ -64,6 +76,9 @@ public class GnosisDbContext(DbContextOptions<GnosisDbContext> options) : DbCont
         {
             entity.ToTable("BloquesTiempo");
             entity.HasKey(b => b.Id);
+
+            entity.Property(b => b.UsuarioId).IsRequired();
+            entity.HasIndex(b => b.UsuarioId);
 
             entity.Property(b => b.Titulo)
                 .IsRequired()

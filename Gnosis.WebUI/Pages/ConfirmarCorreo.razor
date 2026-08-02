@@ -1,0 +1,71 @@
+@page "/confirmar-correo"
+@inject IAuthHttpProxy AuthProxy
+@inject Gnosis.WebUI.services.TokenStorageService TokenStorage
+@inject NavigationManager NavManager
+@using Microsoft.AspNetCore.Components.Authorization
+
+<div class="auth-wrapper">
+    <div class="auth-card">
+        <h1 class="auth-titulo">Gnosis</h1>
+
+        @if (cargando)
+        {
+            <p class="auth-subtitulo">Confirmando tu correo...</p>
+        }
+        else if (exito)
+        {
+            <p class="text-success small">Tu correo quedó confirmado. Ya iniciaste sesión.</p>
+            <button class="btn btn-primary auth-btn" @onclick="IrAGnosis">Entrar a Gnosis</button>
+        }
+        else
+        {
+            <p class="text-danger small">@error</p>
+            <p class="auth-link">
+                <a href="/login">Volver a iniciar sesión</a>
+            </p>
+        }
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "email")]
+    [Parameter]
+    public string? Email { get; set; }
+
+    [SupplyParameterFromQuery(Name = "token")]
+    [Parameter]
+    public string? Token { get; set; }
+
+    private string? error;
+    private bool cargando = true;
+    private bool exito;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Email) || string.IsNullOrWhiteSpace(Token))
+        {
+            error = "Enlace de confirmación inválido.";
+            cargando = false;
+            return;
+        }
+
+        var resultado = await AuthProxy.ConfirmarCorreoAsync(Email, Token);
+        cargando = false;
+
+        if (!resultado.Exito || string.IsNullOrEmpty(resultado.Token))
+        {
+            error = resultado.Error ?? "No se pudo confirmar el correo. El enlace puede haber expirado.";
+            return;
+        }
+
+        exito = true;
+        await TokenStorage.GuardarTokenAsync(resultado.Token);
+
+        if (AuthStateProvider is Gnosis.WebUI.services.JwtAuthenticationStateProvider proveedor)
+            proveedor.NotificarCambioDeSesion();
+    }
+
+    private void IrAGnosis() => NavManager.NavigateTo("/", forceLoad: false);
+
+    [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = null!;
+}

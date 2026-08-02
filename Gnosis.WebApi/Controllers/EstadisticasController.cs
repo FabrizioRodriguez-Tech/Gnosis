@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Gnosis.Business.Services;
 
@@ -5,6 +6,7 @@ namespace Gnosis.WebApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class EstadisticasController : ControllerBase
 {
     private readonly IEstadisticasService _estadisticasService;
@@ -26,7 +28,7 @@ public class EstadisticasController : ControllerBase
             var fin = hasta ?? DateTime.UtcNow.Date.AddDays(1);
             var inicio = desde ?? fin.AddDays(-7);
 
-            var estadisticas = await _estadisticasService.ObtenerEstadisticasSemanaAsync(inicio, fin);
+            var estadisticas = await _estadisticasService.ObtenerEstadisticasSemanaAsync(User.ObtenerUsuarioId(), inicio, fin);
             return Ok(estadisticas);
         }
         catch (Exception ex)

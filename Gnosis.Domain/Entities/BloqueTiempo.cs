@@ -5,6 +5,7 @@ namespace Gnosis.Domain.Entities
     public class BloqueTiempo
     {
         public Guid Id { get; set; } = Guid.NewGuid();
+        public Guid UsuarioId { get; set; }
         public string Titulo { get; set; } = string.Empty;
         public string? Descripcion { get; set; }
         public DateTime FechaInicio { get; set; }
