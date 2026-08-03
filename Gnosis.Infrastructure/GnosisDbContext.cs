@@ -43,6 +43,13 @@ public class GnosisDbContext(DbContextOptions<GnosisDbContext> options)
             // Opcional: se completa solo cuando la tarea pasa a IsCompletada = true
             entity.Property(t => t.FechaCompletada);
 
+            // Opcional: fecha límite usada para calcular la etiqueta de urgencia
+            entity.Property(t => t.FechaEntrega);
+
+            // Override manual de la etiqueta (Urgente/A tiempo/etc.); null = se calcula sola
+            entity.Property(t => t.EtiquetaManual)
+                .HasMaxLength(30);
+
             // Configuración de la estructura jerárquica (Autorreferencia)
             entity.HasOne(t => t.TareaPadre)
                 .WithMany(t => t.Subtareas)

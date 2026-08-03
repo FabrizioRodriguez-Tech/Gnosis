@@ -30,7 +30,22 @@ namespace Gnosis.Business.Models
     public class TareaIADto
     {
         public string Titulo { get; set; } = string.Empty;
-        public List<string> Subtareas { get; set; } = new();
+
+        // Fecha de entrega opcional de la tarea principal (si el usuario la dio o la insinuó).
+        // Habilita la etiqueta de urgencia automática (Vencida/Urgente/Próxima/A tiempo) en la UI.
+        public DateTime? FechaEntrega { get; set; }
+
+        public List<SubtareaIADto> Subtareas { get; set; } = new();
+    }
+
+    public class SubtareaIADto
+    {
+        public string Titulo { get; set; } = string.Empty;
+
+        // Fecha de entrega opcional de ESTA subtarea en particular (ej. el día que le toca a ese
+        // bloque de ejercicios dentro del plan) — cada subtarea puede tener su propia urgencia,
+        // independiente de la fecha límite general de la tarea principal.
+        public DateTime? FechaEntrega { get; set; }
     }
 
     public class BloqueIADto

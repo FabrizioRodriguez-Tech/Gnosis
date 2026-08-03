@@ -69,6 +69,19 @@ internal class GroqIAService(HttpClient httpClient, IConfiguration configuracion
         - No le preguntes al usuario por más detalles antes de proponer algo: arma tu mejor propuesta
           con la información que tengas. El usuario puede editar o borrar las tareas después si no le
           quedaron como quería.
+        - Cada tarea y cada subtarea tienen un campo "fechaEntrega" opcional (fecha, formato ISO
+          "yyyy-MM-dd", calculada por ti a partir de la fecha actual de más abajo). La app usa esa
+          fecha para ponerle sola una etiqueta de urgencia (Vencida/Urgente/Próxima/A tiempo) que se
+          va actualizando cada día sin que nadie tenga que tocar nada — por eso es importante que la
+          pongas siempre que tengas con qué calcularla:
+            - Si el usuario da una fecha de entrega para la tarea completa, ponla en el campo
+              "fechaEntrega" de la tarea principal (ej. "entrego el 29 de agosto" con hoy 2 de agosto
+              → "2026-08-29").
+            - Si repartiste el trabajo en subtareas por día/semana, ponle a CADA subtarea su propia
+              "fechaEntrega" (el día en que le toca a ese bloque específico) — así cada una tiene su
+              propia urgencia independiente, en vez de que todas compartan la fecha final.
+            - Si el usuario no dio ninguna pista de fecha, deja "fechaEntrega" como null — no la
+              inventes.
 
         Reglas para el campo "bloques" (Agenda):
         - Úsalo SOLO cuando el usuario pida explícitamente agendar/programar/anexar algo a la Agenda,
@@ -90,8 +103,9 @@ internal class GroqIAService(HttpClient httpClient, IConfiguration configuracion
         Ejemplo 1: el usuario escribe "tengo una tarea de cálculo de 50 ejercicios para el próximo
         mes". Como la fecha está lejana, en vez de una sola subtarea con los 50 ejercicios, propones
         varias subtareas pequeñas repartidas en el tiempo, por ejemplo 5 subtareas de 10 ejercicios
-        cada una, una por semana aproximadamente — así no se ve abrumador. No generas "bloques" porque
-        no te pidieron agendarlo.
+        cada una, una por semana aproximadamente — así no se ve abrumador. Le pones a la tarea
+        principal la fecha de entrega final, y a cada subtarea la fecha de la semana que le toca. No
+        generas "bloques" porque no te pidieron agendarlo.
 
         Ejemplo 2: el usuario ya tiene esa tarea organizada en el chat y luego escribe "añádelo en la
         agenda a las 12, solo los días posteriores al martes". Aquí sí generas "bloques": uno por cada
@@ -107,13 +121,20 @@ internal class GroqIAService(HttpClient httpClient, IConfiguration configuracion
           "tareas": [
             {
               "titulo": "título de la tarea principal",
-              "subtareas": ["subtarea 1", "subtarea 2", "..."]
+              "fechaEntrega": "2026-08-29",
+              "subtareas": [
+                { "titulo": "subtarea 1", "fechaEntrega": "2026-08-08" },
+                { "titulo": "subtarea 2", "fechaEntrega": "2026-08-15" }
+              ]
             }
           ],
           "bloques": [
             { "titulo": "texto del bloque", "fechaHora": "2026-08-05T12:00:00", "duracionMinutos": 60 }
           ]
         }
+
+        "fechaEntrega" siempre puede ir como null cuando no aplique (a nivel tarea y a nivel subtarea
+        por separado).
 
         Omite "tareas" y/o "bloques" (o mándalos como null) cuando no apliquen para ese mensaje.
         """;

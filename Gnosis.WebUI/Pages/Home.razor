@@ -161,36 +161,66 @@ else
                 else
                 {
                     <div class="todo-list mb-3">
-                        @foreach (var tarea in tareas)
+                        @foreach (var tarea in TareasOrdenadas())
                         {
+                            var tieneSubtareas = tarea.Subtareas != null && tarea.Subtareas.Any();
+                            var colapsada = EstaColapsada(tarea.Id);
                             <div class="p-2 mb-2 rounded bg-white bg-opacity-10 border border-light border-opacity-10 position-relative todo-item-container">
                                 <div class="d-flex align-items-center gap-2 group-actions">
+                                    @if (tieneSubtareas)
+                                    {
+                                        <button class="btn-toggle-subtareas @(colapsada ? "colapsado" : "")"
+                                                @onclick="() => ToggleColapso(tarea.Id)"
+                                                title="@(colapsada ? "Expandir subtareas" : "Colapsar subtareas")">
+                                            <span class="icono-flecha">&#x25BE;</span>
+                                        </button>
+                                    }
                                     <input type="checkbox" checked="@tarea.IsCompletada" @onchange="() => CambiarEstadoTarea(tarea)" class="form-check-input m-0" />
                                     <span class="flex-grow-1 @(tarea.IsCompletada ? "text-decoration-line-through text-white-50" : "text-white")">@tarea.Titulo</span>
+                                    @if (!string.IsNullOrEmpty(tarea.EtiquetaEfectiva))
+                                    {
+                                        <span class="etiqueta-tarea @ClaseEtiqueta(tarea.EtiquetaEfectiva)">@tarea.EtiquetaEfectiva</span>
+                                    }
+                                    <select class="select-etiqueta-tarea" title="Etiqueta manual"
+                                            value="@(tarea.EtiquetaManual ?? "")"
+                                            @onchange="@(e => CambiarEtiquetaManual(tarea, e.Value?.ToString()))">
+                                        <option value="">Auto</option>
+                                        <option value="Urgente">Urgente</option>
+                                        <option value="Próxima">Próxima</option>
+                                        <option value="A tiempo">A tiempo</option>
+                                        <option value="Vencida">Vencida</option>
+                                    </select>
                                     <button class="btn-delete-task" @onclick="() => EliminarTareaPadre(tarea)" title="Eliminar">&#x00D7;</button>
                                 </div>
 
-                                @if (tarea.Subtareas != null && tarea.Subtareas.Any())
+                                @if (tieneSubtareas && !colapsada)
                                 {
                                     <div class="mt-2 ps-4 border-start border-light border-opacity-25">
-                                        @foreach (var subtarea in tarea.Subtareas)
+                                        @foreach (var subtarea in tarea.Subtareas!)
                                         {
                                             <div class="d-flex align-items-center gap-2 py-1 group-actions">
                                                 <input type="checkbox" checked="@subtarea.IsCompletada" @onchange="() => CambiarEstadoTarea(subtarea)" class="form-check-input m-0" />
                                                 <span class="small flex-grow-1 @(subtarea.IsCompletada ? "text-decoration-line-through text-white-50" : "text-white-50")">@subtarea.Titulo</span>
+                                                @if (!string.IsNullOrEmpty(subtarea.EtiquetaEfectiva))
+                                                {
+                                                    <span class="etiqueta-tarea @ClaseEtiqueta(subtarea.EtiquetaEfectiva)">@subtarea.EtiquetaEfectiva</span>
+                                                }
                                                 <button class="btn-delete-task" @onclick="() => EliminarSubtarea(tarea, subtarea)" title="Eliminar">&#x00D7;</button>
                                             </div>
                                         }
                                     </div>
                                 }
 
-                                <div class="input-group input-group-sm mt-2 ps-4">
-                                    <input type="text" class="form-control bg-dark bg-opacity-25 text-white border-0"
-                                           placeholder="Anadir subtarea..."
-                                           value="@ObtenerTextoSubtarea(tarea.Id)"
-                                           @oninput="@(e => ActualizarTextoSubtarea(tarea.Id, e.Value?.ToString()))"
-                                           @onkeyup="@(e => VerificarIntroSubtarea(e, tarea))" />
-                                </div>
+                                @if (!colapsada)
+                                {
+                                    <div class="input-group input-group-sm mt-2 ps-4">
+                                        <input type="text" class="form-control bg-dark bg-opacity-25 text-white border-0"
+                                               placeholder="Anadir subtarea..."
+                                               value="@ObtenerTextoSubtarea(tarea.Id)"
+                                               @oninput="@(e => ActualizarTextoSubtarea(tarea.Id, e.Value?.ToString()))"
+                                               @onkeyup="@(e => VerificarIntroSubtarea(e, tarea))" />
+                                    </div>
+                                }
                             </div>
                         }
                     </div>
@@ -338,8 +368,15 @@ else
                     await TareaProxy.CrearTareaAsync(tarea);
                 if (tarea.Subtareas != null)
                     foreach (var sub in tarea.Subtareas)
+                    {
+                        // Sin esto, la subtarea se guardaba como tarea raíz suelta (sin padre) —
+                        // por eso las tareas creadas por la IA aparecían como una tarjeta plana por
+                        // cada ejercicio/día en vez de anidadas bajo la tarea principal, lo que
+                        // obligaba a scrollear mucho más de lo necesario.
+                        sub.TareaPadreId = tarea.Id;
                         if (TareaProxy != null)
                             await TareaProxy.CrearTareaAsync(sub);
+                    }
             }
             catch (Exception ex)
             {
@@ -395,6 +432,37 @@ else
             // Solicitar permiso de notificaciones del navegador al cargar la app
             if (Notificaciones != null)
                 await Notificaciones.SolicitarPermisoAsync();
+
+            // Avisar de una vez si ya hay tareas urgentes/vencidas esperando (después de pedir
+            // permiso, para tener más chance de que ya esté concedido en este mismo load).
+            await RevisarTareasUrgentesAsync();
+        }
+    }
+
+    // ── Recordatorio de tareas urgentes/vencidas ─────────────────
+    private async Task RevisarTareasUrgentesAsync()
+    {
+        if (tareas == null || Notificaciones == null) return;
+
+        var urgentes = tareas
+            .SelectMany(t => new[] { t }.Concat(t.Subtareas ?? new List<TareaModel>()))
+            .Where(t => !t.IsCompletada && (t.EtiquetaEfectiva == "Urgente" || t.EtiquetaEfectiva == "Vencida"))
+            .ToList();
+
+        if (!urgentes.Any()) return;
+
+        var hayVencidas = urgentes.Any(t => t.EtiquetaEfectiva == "Vencida");
+        var titulo = hayVencidas ? "Tienes tareas vencidas" : "Tienes tareas urgentes";
+        var resumen = string.Join(", ", urgentes.Take(3).Select(t => t.Titulo));
+        if (urgentes.Count > 3) resumen += $" y {urgentes.Count - 3} más";
+
+        try
+        {
+            await Notificaciones.NotificarAsync(titulo, resumen);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Gnosis] Error al notificar tareas urgentes: {ex.Message}");
         }
     }
 
@@ -440,6 +508,43 @@ else
     private string? errorTareas;
     private Dictionary<Guid, string> nuevosTitulosSubtareas = new();
     private bool mostrarConfiguracion = false;
+
+    // Tareas cuyas subtareas están colapsadas (ocultas) para no tener que scrollear tanto
+    // cuando una tarea tiene muchas subtareas y se quiere llegar a otra más abajo.
+    private HashSet<Guid> tareasColapsadas = new();
+    private bool EstaColapsada(Guid id) => tareasColapsadas.Contains(id);
+    private void ToggleColapso(Guid id)
+    {
+        if (!tareasColapsadas.Add(id))
+            tareasColapsadas.Remove(id);
+    }
+
+    // Vencidas/urgentes primero; completadas siempre al final. Ver TareaModel.RangoUrgencia.
+    private IEnumerable<TareaModel> TareasOrdenadas() =>
+        tareas?.OrderBy(t => t.RangoUrgencia).ThenBy(t => t.FechaCreacion) ?? Enumerable.Empty<TareaModel>();
+
+    private static string ClaseEtiqueta(string? etiqueta) => etiqueta switch
+    {
+        "Vencida" => "etiqueta-vencida",
+        "Urgente" => "etiqueta-urgente",
+        "Próxima" => "etiqueta-proxima",
+        "A tiempo" => "etiqueta-a-tiempo",
+        _ => "etiqueta-a-tiempo"
+    };
+
+    private async Task CambiarEtiquetaManual(TareaModel tarea, string? valor)
+    {
+        tarea.EtiquetaManual = string.IsNullOrEmpty(valor) ? null : valor;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            if (TareaProxy != null) await TareaProxy.ActualizarEtiquetaAsync(tarea.Id, tarea.EtiquetaManual);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Gnosis] Error al actualizar etiqueta: {ex.Message}");
+        }
+    }
 
     private int TiempoPomodoro
     {

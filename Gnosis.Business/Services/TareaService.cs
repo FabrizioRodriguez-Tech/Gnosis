@@ -38,6 +38,8 @@ internal class TareaService(IRepository<Tarea> tareaRepository) : ITareaService
             IsCompletada = t.IsCompletada,
             FechaCreacion = t.FechaCreacion,
             FechaCompletada = t.FechaCompletada,
+            FechaEntrega = t.FechaEntrega,
+            EtiquetaManual = t.EtiquetaManual,
             TareaPadreId = t.TareaPadreId,
             Subtareas = new List<TareaModel>()
         };
@@ -50,7 +52,7 @@ internal class TareaService(IRepository<Tarea> tareaRepository) : ITareaService
         return modelo;
     }
 
-    public async Task<TareaModel> CrearTareaRaizAsync(Guid usuarioId, Guid? id, string titulo, string? descripcion, Guid? tareaPadreId = null)
+    public async Task<TareaModel> CrearTareaRaizAsync(Guid usuarioId, Guid? id, string titulo, string? descripcion, Guid? tareaPadreId = null, DateTime? fechaEntrega = null)
     {
         var nuevaTarea = new Tarea
         {
@@ -62,12 +64,38 @@ internal class TareaService(IRepository<Tarea> tareaRepository) : ITareaService
             Descripcion = descripcion,
             // Si viene un padre, se persiste como subtarea; antes se ignoraba este dato y toda
             // subtarea quedaba guardada como tarea raíz (se "perdía" su padre al recargar la página).
-            TareaPadreId = tareaPadreId
+            TareaPadreId = tareaPadreId,
+            // Opcional: si viene (manual o propuesta por la IA), habilita el cálculo automático
+            // de la etiqueta de urgencia en el cliente.
+            FechaEntrega = fechaEntrega
         };
 
         await tareaRepository.AgregarAsync(nuevaTarea);
 
         return MapearATareaModel(nuevaTarea);
+    }
+
+    public async Task<bool> ActualizarFechaEntregaAsync(Guid usuarioId, Guid id, DateTime? fechaEntrega)
+    {
+        var tarea = await tareaRepository.GetByIdAsync(id);
+        if (tarea == null || tarea.UsuarioId != usuarioId) return false;
+
+        tarea.FechaEntrega = fechaEntrega;
+        await tareaRepository.ActualizarAsync(tarea);
+
+        return true;
+    }
+
+    public async Task<bool> ActualizarEtiquetaAsync(Guid usuarioId, Guid id, string? etiquetaManual)
+    {
+        var tarea = await tareaRepository.GetByIdAsync(id);
+        if (tarea == null || tarea.UsuarioId != usuarioId) return false;
+
+        // Cadena vacía se trata igual que null: "quitar el override manual, volver al cálculo automático".
+        tarea.EtiquetaManual = string.IsNullOrWhiteSpace(etiquetaManual) ? null : etiquetaManual;
+        await tareaRepository.ActualizarAsync(tarea);
+
+        return true;
     }
 
     public async Task<TareaModel> DesglosarTareaAsync(Guid usuarioId, Guid tareaPadreId, string tituloSubtarea)

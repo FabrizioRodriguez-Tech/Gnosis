@@ -12,6 +12,8 @@ namespace Gnosis.WebUI
         Task<IEnumerable<TareaModel>> ObtenerTodasAsync();
         Task<TareaModel> CrearTareaAsync(TareaModel nuevaTarea);
         Task ActualizarEstadoTareaAsync(Guid id, bool isCompletada);
+        Task ActualizarFechaEntregaAsync(Guid id, DateTime? fechaEntrega);
+        Task ActualizarEtiquetaAsync(Guid id, string? etiquetaManual);
 
         // NUEVO: Registramos la acción de borrado en la interfaz
         Task EliminarTareaAsync(Guid id);
@@ -44,6 +46,18 @@ namespace Gnosis.WebUI
             // El servidor espera { "isCompletada": true } (ActualizarEstadoRequest), no un booleano
             // suelto. Antes se mandaba el bool directo y la API respondía 400 Bad Request siempre.
             var respuesta = await _httpClient.PutAsJsonAsync($"api/Tareas/{id}/estado", new { IsCompletada = isCompletada });
+            respuesta.EnsureSuccessStatusCode();
+        }
+
+        public async Task ActualizarFechaEntregaAsync(Guid id, DateTime? fechaEntrega)
+        {
+            var respuesta = await _httpClient.PutAsJsonAsync($"api/Tareas/{id}/fecha-entrega", new { FechaEntrega = fechaEntrega });
+            respuesta.EnsureSuccessStatusCode();
+        }
+
+        public async Task ActualizarEtiquetaAsync(Guid id, string? etiquetaManual)
+        {
+            var respuesta = await _httpClient.PutAsJsonAsync($"api/Tareas/{id}/etiqueta", new { EtiquetaManual = etiquetaManual });
             respuesta.EnsureSuccessStatusCode();
         }
 

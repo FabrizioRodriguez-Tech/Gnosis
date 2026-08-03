@@ -101,10 +101,17 @@ namespace Gnosis.Infrastructure.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<string>("EtiquetaManual")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<DateTime?>("FechaCompletada")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("FechaEntrega")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsCompletada")

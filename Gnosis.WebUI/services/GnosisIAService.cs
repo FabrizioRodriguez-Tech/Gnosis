@@ -70,8 +70,9 @@ namespace Gnosis.WebUI.services
                         var subtareas = t.Subtareas.Select(s => new TareaModel
                         {
                             Id = Guid.NewGuid(),
-                            Titulo = s,
+                            Titulo = s.Titulo,
                             FechaCreacion = DateTime.UtcNow,
+                            FechaEntrega = s.FechaEntrega,
                             Subtareas = new List<TareaModel>()
                         }).ToList();
 
@@ -80,6 +81,7 @@ namespace Gnosis.WebUI.services
                             Id = Guid.NewGuid(),
                             Titulo = t.Titulo,
                             FechaCreacion = DateTime.UtcNow,
+                            FechaEntrega = t.FechaEntrega,
                             Subtareas = subtareas
                         });
                     }

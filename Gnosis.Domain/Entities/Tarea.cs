@@ -19,6 +19,17 @@ namespace Gnosis.Domain.Entities
         // Se completa cuando IsCompletada pasa a true; se limpia si vuelve a false. Usado para el dashboard.
         public DateTime? FechaCompletada { get; set; }
 
+        // Fecha de entrega opcional (la puede poner el usuario a mano, o la IA cuando el mensaje
+        // trae o insinúa una fecha límite). A partir de esta fecha se calcula la etiqueta de
+        // urgencia (Vencida/Urgente/Próxima/A tiempo) — no se guarda la etiqueta en sí, se recalcula
+        // cada vez a partir de esta fecha para que "avance sola" con el paso de los días.
+        public DateTime? FechaEntrega { get; set; }
+
+        // Etiqueta puesta a mano por el usuario, que pisa el cálculo automático a partir de
+        // FechaEntrega (ej. si quiere marcar algo "Urgente" aunque falten varios días). Null =
+        // no hay override, se usa la etiqueta calculada.
+        public string? EtiquetaManual { get; set; }
+
         // Relación reflexiva para desglose jerárquico (Árbol de subtareas)
         public Guid? TareaPadreId { get; set; }
         public Tarea? TareaPadre { get; set; }
