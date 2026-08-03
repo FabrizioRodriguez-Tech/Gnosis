@@ -31,7 +31,7 @@ public class AuthController(
             return BadRequest("El correo y la contraseña son obligatorios.");
 
         // Si ya existe una cuenta con ese correo pero nunca se confirmó (típico de un intento
-        // anterior donde el envío del correo falló, p. ej. por Smtp mal configurado), no bloqueamos
+        // anterior donde el envío del correo falló, p. ej. por Brevo mal configurado), no bloqueamos
         // el registro: reenviamos la confirmación en vez de devolver "correo ya en uso".
         var usuarioExistente = await userManager.FindByEmailAsync(request.Email);
         if (usuarioExistente != null)
@@ -40,7 +40,7 @@ public class AuthController(
                 return BadRequest("Ya existe una cuenta con ese correo. Inicia sesión o recupera tu contraseña.");
 
             if (!await EnviarCorreoConfirmacionAsync(usuarioExistente))
-                return StatusCode(500, "La cuenta ya existía pero no se pudo enviar el correo de confirmación. Revisa la configuración de correo (Smtp) del servidor.");
+                return StatusCode(500, "La cuenta ya existía pero no se pudo enviar el correo de confirmación. Revisa la configuración de correo (Brevo) del servidor.");
 
             return Ok(new MensajeResponse("Ya existía una cuenta pendiente con ese correo: te reenviamos el enlace de confirmación."));
         }
@@ -57,7 +57,7 @@ public class AuthController(
             return BadRequest(string.Join(" ", resultado.Errors.Select(e => e.Description)));
 
         if (!await EnviarCorreoConfirmacionAsync(usuario))
-            return StatusCode(500, "La cuenta se creó pero no se pudo enviar el correo de confirmación. Revisa la configuración de correo (Smtp) del servidor y usa 'reenviar confirmación' desde el login.");
+            return StatusCode(500, "La cuenta se creó pero no se pudo enviar el correo de confirmación. Revisa la configuración de correo (Brevo) del servidor y usa 'reenviar confirmación' desde el login.");
 
         return Ok(new MensajeResponse("Cuenta creada. Revisa tu correo para confirmarla antes de iniciar sesión."));
     }
@@ -113,7 +113,7 @@ public class AuthController(
         if (usuario != null && !usuario.EmailConfirmed)
         {
             if (!await EnviarCorreoConfirmacionAsync(usuario))
-                return StatusCode(500, "No se pudo enviar el correo. Revisa la configuración de correo (Smtp) del servidor.");
+                return StatusCode(500, "No se pudo enviar el correo. Revisa la configuración de correo (Brevo) del servidor.");
         }
 
         return Ok(new MensajeResponse("Si la cuenta existe y no ha sido confirmada, se envió un nuevo correo."));
@@ -139,7 +139,7 @@ public class AuthController(
             catch (Exception ex)
             {
                 logger.LogError(ex, "No se pudo enviar el correo de restablecimiento a {Email}", usuario.Email);
-                return StatusCode(500, "No se pudo enviar el correo. Revisa la configuración de correo (Smtp) del servidor.");
+                return StatusCode(500, "No se pudo enviar el correo. Revisa la configuración de correo (Brevo) del servidor.");
             }
         }
 
@@ -164,7 +164,7 @@ public class AuthController(
     }
 
     // Devuelve false (en vez de dejar que la excepción tumbe el request) si el envío del correo
-    // falla — típicamente porque Smtp:Clave en appsettings.Development.json sigue siendo el
+    // falla — típicamente porque Brevo:ApiKey en appsettings.Development.json sigue siendo el
     // placeholder o está mal, y no queremos que eso se vea como un 500 con stack trace crudo.
     private async Task<bool> EnviarCorreoConfirmacionAsync(ApplicationUser usuario)
     {

@@ -14,10 +14,6 @@
 		<!-- Solo para firmar el JWT en TokenService; no trae dependencia de ASP.NET Core -->
 		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.*" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0-*" />
-		<!-- MailKit en vez de System.Net.Mail.SmtpClient (obsoleto y con problemas conocidos de
-		     autenticación STARTTLS contra Gmail: "5.7.0 Authentication Required" incluso con
-		     contraseña de aplicación correcta). Microsoft recomienda MailKit explícitamente. -->
-		<PackageReference Include="MailKit" Version="4.*" />
 	</ItemGroup>
 
 	<ItemGroup>
