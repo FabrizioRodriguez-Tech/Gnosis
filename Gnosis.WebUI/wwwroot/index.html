@@ -7,6 +7,10 @@
     <title>Gnosis.WebUI</title>
     <base href="/" />
     <link rel="preload" id="webassembly" />
+    <!-- Tipografía "Zhongli" (elegante, tipo grabado en piedra) para el branding: pantalla de carga y tarjetas de login/registro. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
@@ -49,6 +53,13 @@
                 let inicioY = null;
                 const UMBRAL_ARRASTRE = 4;
 
+                // Límite para que el panel no se pueda arrastrar fuera de la pantalla —
+                // se recalcula en cada movimiento porque offsetWidth/Height pueden variar
+                // (ej. el panel cambia de tamaño al minimizarse).
+                function limitar(valor, maximo) {
+                    return Math.max(0, Math.min(valor, Math.max(0, maximo)));
+                }
+
                 function onMove(e) {
                     if (inicioX === null) {
                         inicioX = e.clientX;
@@ -64,7 +75,8 @@
 
                     if (minimizado) {
                         const mitad = window.innerWidth / 2;
-                        el.style.top = (e.clientY - offsetY) + 'px';
+                        const nuevoTop = limitar(e.clientY - offsetY, window.innerHeight - el.offsetHeight);
+                        el.style.top = nuevoTop + 'px';
 
                         if (e.clientX < mitad) {
                             el.style.left = '0px';
@@ -74,8 +86,10 @@
                             el.style.left = 'auto';
                         }
                     } else {
-                        el.style.left = (e.clientX - offsetX) + 'px';
-                        el.style.top = (e.clientY - offsetY) + 'px';
+                        const nuevoLeft = limitar(e.clientX - offsetX, window.innerWidth - el.offsetWidth);
+                        const nuevoTop = limitar(e.clientY - offsetY, window.innerHeight - el.offsetHeight);
+                        el.style.left = nuevoLeft + 'px';
+                        el.style.top = nuevoTop + 'px';
                         el.style.right = 'auto';
                     }
                 }
@@ -88,6 +102,18 @@
                     // Fue un clic, no un arrastre: no notificar nueva posición
                     // (así el toggle de minimizar/expandir sigue funcionando).
                     if (!seMovio) return;
+
+                    // Hubo arrastre real: el navegador va a disparar un "click" nativo justo
+                    // después de este mouseup (mismo elemento donde empezó el mousedown), y ese
+                    // click dispara ANTES de que el aviso a Blazor (más abajo, invokeMethodAsync,
+                    // que es async) alcance a poner huboArrastreReal=true del lado de .NET — por
+                    // eso el panel se abría/cerraba solo al soltar un arrastre. Lo bloqueamos acá
+                    // mismo, en JS, de forma síncrona, para no depender de ese round-trip.
+                    el.addEventListener('click', function bloquearClickPostArrastre(ev) {
+                        ev.stopPropagation();
+                        ev.preventDefault();
+                        el.removeEventListener('click', bloquearClickPostArrastre, true);
+                    }, true);
 
                     const finalX = el.style.left === 'auto'
                         ? window.innerWidth - el.offsetWidth

@@ -42,6 +42,14 @@
             @(cargando ? "Entrando..." : "Entrar")
         </button>
 
+        <button class="btn btn-outline-secondary auth-btn" @onclick="EntrarComoInvitadoAsync" disabled="@cargando">
+            @(cargandoInvitado ? "Entrando..." : "Continuar como invitado")
+        </button>
+        <p class="auth-hint">
+            Modo invitado: pruebas la app sin registrarte, pero no vas a poder volver a esta misma
+            sesión después — para guardar tus datos a largo plazo, crea una cuenta.
+        </p>
+
         <p class="auth-link">
             <a href="/olvide-password">¿Olvidaste tu contraseña?</a>
         </p>
@@ -57,6 +65,7 @@
     private string? error;
     private string? mensajeExito;
     private bool cargando;
+    private bool cargandoInvitado;
     private bool mostrarReenviarConfirmacion;
     private bool reenviando;
 
@@ -87,7 +96,30 @@
             return;
         }
 
-        await TokenStorage.GuardarTokenAsync(resultado.Token);
+        await CompletarSesionAsync(resultado.Token);
+    }
+
+    private async Task EntrarComoInvitadoAsync()
+    {
+        cargandoInvitado = true;
+        error = null;
+        mensajeExito = null;
+        mostrarReenviarConfirmacion = false;
+        var resultado = await AuthProxy.EntrarComoInvitadoAsync();
+        cargandoInvitado = false;
+
+        if (!resultado.Exito || string.IsNullOrEmpty(resultado.Token))
+        {
+            error = resultado.Error ?? "No se pudo entrar como invitado.";
+            return;
+        }
+
+        await CompletarSesionAsync(resultado.Token);
+    }
+
+    private async Task CompletarSesionAsync(string token)
+    {
+        await TokenStorage.GuardarTokenAsync(token);
 
         if (AuthStateProvider is Gnosis.WebUI.services.JwtAuthenticationStateProvider proveedor)
             proveedor.NotificarCambioDeSesion();

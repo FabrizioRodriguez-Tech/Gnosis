@@ -23,6 +23,10 @@
                         {
                             <div class="ia-msg-etiqueta">Tareas creadas en tu lista</div>
                         }
+                        @if (!msg.EsUsuario && msg.TeniaBloques)
+                        {
+                            <div class="ia-msg-etiqueta">Se agregó a tu Agenda</div>
+                        }
                     </div>
                 }
                 @if (iaCargando)
@@ -41,6 +45,7 @@
                        placeholder="Describe tu tarea o cuentame en que estas perdido..."
                        @bind="iaMensajeActual"
                        @onkeyup="HandleIAKeyUp"
+                       @ref="iaInputRef"
                        disabled="@iaCargando" />
                 <button class="ia-btn-enviar" @onclick="EnviarMensajeIA" disabled="@iaCargando">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"
@@ -68,12 +73,16 @@
     // ── Parámetro: callback para cuando la IA crea tareas ────────
     [Parameter] public EventCallback<List<TareaModel>> OnTareasCreadas { get; set; }
 
+    // ── Parámetro: callback para cuando la IA agenda bloques en la Agenda ─
+    [Parameter] public EventCallback<List<Gnosis.Business.Models.BloqueTiempoModel>> OnBloquesCreados { get; set; }
+
     // ── Estado interno ───────────────────────────────────────────
     private bool iaExpandida = false;
     private bool iaCargando = false;
     private string iaMensajeActual = string.Empty;
+    private ElementReference iaInputRef;
 
-    private record MensajeChat(string Texto, bool EsUsuario, bool TeniasTareas = false);
+    private record MensajeChat(string Texto, bool EsUsuario, bool TeniasTareas = false, bool TeniaBloques = false);
     private List<MensajeChat> iaMensajes = new();
 
     // ── Lógica de chat ───────────────────────────────────────────
@@ -99,11 +108,14 @@
 
             var respuesta = await IAService.ConsultarAsync(texto, historial);
 
-            // Si la IA creó tareas, se notifica a Home.razor via callback
+            // Si la IA creó tareas y/o bloques de agenda, se notifica a Home.razor via callback
             if (respuesta.CreoTareas && respuesta.Tareas != null)
                 await OnTareasCreadas.InvokeAsync(respuesta.Tareas);
 
-            iaMensajes.Add(new MensajeChat(respuesta.Texto, EsUsuario: false, TeniasTareas: respuesta.CreoTareas));
+            if (respuesta.CreoBloques && respuesta.Bloques != null)
+                await OnBloquesCreados.InvokeAsync(respuesta.Bloques);
+
+            iaMensajes.Add(new MensajeChat(respuesta.Texto, EsUsuario: false, TeniasTareas: respuesta.CreoTareas, TeniaBloques: respuesta.CreoBloques));
         }
         catch (Exception ex)
         {
@@ -117,6 +129,15 @@
             {
                 await JS.InvokeVoidAsync("eval",
                     "var el = document.getElementById('ia-mensajes'); if(el) el.scrollTop = el.scrollHeight;");
+            }
+            catch { }
+
+            // El input se deshabilita mientras iaCargando=true (para evitar doble envío), y al
+            // rehabilitarse el navegador NO le devuelve el foco solo — por eso había que hacer
+            // clic de nuevo para seguir escribiendo. Se lo devolvemos explícitamente acá.
+            try
+            {
+                await iaInputRef.FocusAsync();
             }
             catch { }
         }

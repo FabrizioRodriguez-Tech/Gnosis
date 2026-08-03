@@ -45,6 +45,8 @@ internal static class DependencyInjection
         // AddHttpClient (no AddScoped) porque BrevoEmailSender necesita un HttpClient inyectado;
         // esto registra tanto el HttpClient administrado como el propio IEmailSender.
         services.AddHttpClient<IEmailSender, BrevoEmailSender>();
+        // Mismo patrón para el asistente de IA (Groq).
+        services.AddHttpClient<IIAService, GroqIAService>();
 
         return services;
     }

@@ -13,6 +13,85 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
+/* Reemplaza el azul por defecto de Bootstrap en todos los botones "primarios" (Entrar, Agregar,
+   Crear cuenta, etc.) por el dorado de marca, para que combine con las tarjetas de vidrio. */
+.btn-primary {
+    background-color: #8ec5ff;
+    border-color: #8ec5ff;
+    color: #1e1e1e;
+}
+
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+    background-color: #6fa8e0 !important;
+    border-color: #6fa8e0 !important;
+    color: #1e1e1e !important;
+}
+
+/* ==========================================
+   PANTALLA DE CARGA (mientras Blazor descarga el WASM, y también mientras se verifica
+   la sesión justo después — ver .pantalla-carga / <Authorizing> en App.razor, que reusa
+   estas mismas clases para que sea una sola animación continua en vez de un salto visual).
+   Aro delgado tipo "halo" azul suave sobre fondo negro, con "Gnosis" en blanco al centro.
+   El aro se va llenando solo — Blazor actualiza la variable --blazor-load-percentage en
+   <html>, nosotros solo la usamos para el stroke-dasharray; como es una custom property en
+   :root, sigue disponible (ya en 100%) incluso después de que Blazor termine de arrancar.
+   .loading-progress y .loading-progress-text son hermanos en el HTML (no uno dentro del
+   otro), así que los apilamos con CSS Grid (misma celda) en vez de position:absolute,
+   que habría necesitado un ancestro posicionado exacto al tamaño del círculo.
+   ========================================== */
+#app:has(.loading-progress),
+.pantalla-carga {
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+    background: #000000;
+}
+
+.loading-progress,
+.loading-progress-text {
+    grid-area: 1 / 1;
+}
+
+.loading-progress {
+    display: block;
+    width: 8rem;
+    height: 8rem;
+    filter: drop-shadow(0 0 10px rgba(142, 197, 255, 0.45));
+}
+
+.loading-progress circle {
+    fill: none;
+    stroke: rgba(142, 197, 255, 0.16);
+    stroke-width: 0.15rem;
+    transform-origin: 50% 50%;
+    transform: rotate(-90deg);
+}
+
+.loading-progress circle:last-child {
+    stroke: #8ec5ff;
+    stroke-linecap: round;
+    stroke-dasharray: calc(3.141 * var(--blazor-load-percentage, 100%) * 0.8), 500%;
+    transition: stroke-dasharray 0.05s ease-in-out;
+}
+
+.loading-progress-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Cinzel", Georgia, "Times New Roman", serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: #ffffff;
+    text-shadow: 0 0 14px rgba(142, 197, 255, 0.65);
+}
+
+.loading-progress-text:after {
+    content: "Gnosis";
+}
+
 /* ==========================================
    ESTRUCTURA DEL CONTENEDOR WORKSPACE
    ========================================== */
@@ -33,9 +112,12 @@ body {
    TARJETA POMODORO (DIMENSIONES Y COLOR FIEL A LA IMAGEN)
    ========================================== */
 .timer-block-compact {
-    background-color: #1e2530;
+    background-color: rgba(255, 255, 255, 0.035);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    border: 1px solid rgba(142, 197, 255, 0.3);
     border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25), 0 0 20px rgba(142, 197, 255, 0.1);
     color: #ffffff;
     padding: 1rem 1.5rem;
     width: 100%;
@@ -177,9 +259,12 @@ body {
    BLOQUE TO-DO (ALINEADO A LA IZQUIERDA)
    ========================================== */
 .todo-block {
-    background-color: #1e2530;
+    background-color: rgba(255, 255, 255, 0.035);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    border: 1px solid rgba(142, 197, 255, 0.3);
     border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25), 0 0 20px rgba(142, 197, 255, 0.1);
     color: #ffffff;
     padding: 1.5rem;
     width: 100%;
@@ -266,9 +351,12 @@ body {
     position: fixed;
     z-index: 50;
     min-width: 320px;
-    background-color: #1e2530;
+    background-color: rgba(255, 255, 255, 0.035);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    border: 1px solid rgba(142, 197, 255, 0.3);
     border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), 0 0 20px rgba(142, 197, 255, 0.1);
     color: #ffffff;
     user-select: none;
     transition: width 0.25s ease, height 0.25s ease, min-width 0.25s ease, background-color 0.25s ease, border-radius 0.25s ease, padding 0.25s ease, left 0.25s ease, right 0.25s ease;
@@ -631,22 +719,22 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    background: rgba(30, 37, 48, 0.85);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.035);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    border: 1px solid rgba(142, 197, 255, 0.3);
     border-radius: 999px;
     padding: 10px 18px;
     cursor: pointer;
     transition: all 0.25s ease;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 20px rgba(142, 197, 255, 0.1);
     color: #ffffff;
     user-select: none;
 }
 
     .ia-barra-fija:hover {
-        background: rgba(40, 48, 62, 0.9);
-        border-color: rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.06);
+        border-color: rgba(142, 197, 255, 0.5);
         transform: scale(1.02);
     }
 
@@ -656,7 +744,8 @@ body {
     justify-content: center;
     width: 28px;
     height: 28px;
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, #8ec5ff, #cfe6ff);
+    box-shadow: 0 0 10px rgba(142, 197, 255, 0.45);
     border-radius: 50%;
     flex-shrink: 0;
 }
@@ -683,12 +772,12 @@ body {
     right: 0;
     width: 380px;
     max-height: 520px;
-    background: rgba(30, 37, 48, 0.95);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(20, 24, 30, 0.75);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    border: 1px solid rgba(142, 197, 255, 0.3);
     border-radius: 16px;
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6), 0 0 24px rgba(142, 197, 255, 0.1);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -804,7 +893,8 @@ body {
 }
 
 .ia-msg-usuario .ia-msg-burbuja {
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, #8ec5ff, #cfe6ff);
+    color: #1e1e1e;
     border-bottom-right-radius: 4px;
 }
 
@@ -891,7 +981,7 @@ body {
     }
 
     .ia-input:focus {
-        border-color: rgba(108, 92, 231, 0.6);
+        border-color: rgba(142, 197, 255, 0.6);
         background: rgba(255, 255, 255, 0.08);
     }
 
@@ -904,8 +994,8 @@ body {
     height: 38px;
     border-radius: 50%;
     border: none;
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
-    color: #fff;
+    background: linear-gradient(135deg, #8ec5ff, #cfe6ff);
+    color: #1e1e1e;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -916,7 +1006,7 @@ body {
 
     .ia-btn-enviar:hover:not(:disabled) {
         transform: scale(1.05);
-        box-shadow: 0 4px 16px rgba(108, 92, 231, 0.4);
+        box-shadow: 0 4px 16px rgba(142, 197, 255, 0.4);
     }
 
     .ia-btn-enviar:disabled {
@@ -952,25 +1042,30 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #1e1e1e;
+    background: #000000;
     padding: 20px;
 }
 
 .auth-card {
     width: 100%;
     max-width: 380px;
-    background: rgba(30, 37, 48, 0.95);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.035);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    border: 1px solid rgba(142, 197, 255, 0.4);
     border-radius: 14px;
     padding: 32px 28px;
     color: #ffffff;
+    box-shadow: 0 0 24px rgba(142, 197, 255, 0.15);
 }
 
 .auth-titulo {
-    font-size: 1.6rem;
+    font-family: "Cinzel", Georgia, "Times New Roman", serif;
+    font-size: 1.7rem;
     font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #ffffff;
+    text-shadow: 0 0 14px rgba(142, 197, 255, 0.6);
     margin-bottom: 4px;
 }
 

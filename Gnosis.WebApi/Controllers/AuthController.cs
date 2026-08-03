@@ -81,6 +81,36 @@ public class AuthController(
     }
 
     /// <summary>
+    /// Crea una cuenta de invitado desechable (correo falso, ya confirmada) y devuelve el token
+    /// de una vez, sin pasar por registro ni confirmación. Pensada para que alguien pruebe la app
+    /// sin comprometerse a crear una cuenta real. Cada clic genera un invitado nuevo e independiente;
+    /// sus datos quedan guardados como los de cualquier usuario (aislados por UsuarioId), pero nadie
+    /// puede volver a esa misma sesión de invitado más adelante.
+    /// </summary>
+    [HttpPost("invitado")]
+    public async Task<IActionResult> EntrarComoInvitado()
+    {
+        var sufijo = Guid.NewGuid().ToString("N")[..12];
+        var usuario = new ApplicationUser
+        {
+            UserName = $"invitado-{sufijo}",
+            Email = $"invitado-{sufijo}@invitados.gnosis.local",
+            NombreVisible = "Invitado",
+            EmailConfirmed = true
+        };
+
+        // Contraseña aleatoria que nadie necesita conocer: a esta cuenta solo se entra por este
+        // endpoint, nunca por /login.
+        var passwordAleatoria = Guid.NewGuid().ToString("N") + "Aa1!";
+        var resultado = await userManager.CreateAsync(usuario, passwordAleatoria);
+        if (!resultado.Succeeded)
+            return StatusCode(500, "No se pudo crear la sesión de invitado.");
+
+        var token = tokenService.GenerarToken(usuario.Id, usuario.Email!);
+        return Ok(new AuthResponse { Token = token, Email = usuario.Email!, NombreVisible = usuario.NombreVisible });
+    }
+
+    /// <summary>
     /// Confirma el correo con el token recibido por email. Si es válido, además loguea de una vez
     /// (evita que el usuario tenga que volver a escribir la contraseña justo después de confirmar).
     /// </summary>

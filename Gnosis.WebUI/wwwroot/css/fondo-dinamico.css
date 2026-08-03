@@ -35,6 +35,14 @@
     width: 100%;
     height: 100%;
     background: rgba(0, 0, 0, 0.25);
+    transition: background-color 0.4s ease;
+}
+
+/* Al cambiar de fondo, el iframe de YouTube se recarga desde cero y durante ese primer
+   instante puede alcanzar a mostrarse su UI nativa (controles de pausa/siguiente) antes de
+   que el autoplay arranque. Tapamos la pantalla con este overlay casi opaco mientras carga. */
+.video-bg-overlay-transicion {
+    background: rgba(0, 0, 0, 0.97);
 }
 
 /* ==========================================
@@ -132,9 +140,12 @@
     position: fixed;
     z-index: 50;
     min-width: 320px;
-    background-color: #1e2530;
+    background-color: rgba(255, 255, 255, 0.035);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    border: 1px solid rgba(142, 197, 255, 0.3);
     border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), 0 0 20px rgba(142, 197, 255, 0.1);
     color: #ffffff;
     user-select: none;
     transition: width 0.25s ease, height 0.25s ease, min-width 0.25s ease, background-color 0.25s ease, border-radius 0.25s ease, padding 0.25s ease, left 0.25s ease, right 0.25s ease;
@@ -187,13 +198,13 @@
     width: 72px;
     height: 40px;
     border-radius: 8px;
-    background-color: rgba(30, 37, 48, 0.60);
+    background-color: rgba(255, 255, 255, 0.06);
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(142, 197, 255, 0.35);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 14px rgba(142, 197, 255, 0.12);
 }
 
     .panel-flotante.panel-minimizado .panel-header {
@@ -438,7 +449,7 @@
 }
 
     .agenda-dia-header.agenda-dia-hoy {
-        background: rgba(108, 92, 231, 0.25);
+        background: rgba(142, 197, 255, 0.25);
     }
 
 .agenda-dia-nombre {
@@ -583,8 +594,8 @@
 }
 
 .agenda-btn-guardar {
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
-    color: #fff;
+    background: linear-gradient(135deg, #8ec5ff, #cfe6ff);
+    color: #1e1e1e;
     margin-left: auto;
 }
 
@@ -666,13 +677,14 @@
 .dashboard-barra {
     width: 60%;
     min-height: 2px;
-    background: linear-gradient(180deg, #a29bfe, #6c5ce7);
+    background: linear-gradient(180deg, #cfe6ff, #5f9fe0);
     border-radius: 4px 4px 0 0;
     transition: height 0.3s ease;
 }
 
     .dashboard-barra.dashboard-barra-hoy {
-        background: linear-gradient(180deg, #ffeaa7, #fdcb6e);
+        background: linear-gradient(180deg, #ffffff, #8ec5ff);
+        box-shadow: 0 0 10px rgba(142, 197, 255, 0.6);
     }
 
 .dashboard-dia-label {

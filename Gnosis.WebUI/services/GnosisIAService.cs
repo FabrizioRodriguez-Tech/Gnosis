@@ -9,6 +9,8 @@ namespace Gnosis.WebUI.services
         public string Texto { get; set; } = string.Empty;
         public List<TareaModel>? Tareas { get; set; }
         public bool CreoTareas => Tareas != null && Tareas.Any();
+        public List<BloqueTiempoModel>? Bloques { get; set; }
+        public bool CreoBloques => Bloques != null && Bloques.Any();
     }
 
     public class MensajeHistorial
@@ -82,6 +84,17 @@ namespace Gnosis.WebUI.services
                         });
                     }
                     resultado.Tareas = tareas;
+                }
+
+                if (raw.Bloques != null && raw.Bloques.Any())
+                {
+                    resultado.Bloques = raw.Bloques.Select(b => new BloqueTiempoModel
+                    {
+                        Id = Guid.NewGuid(),
+                        Titulo = b.Titulo,
+                        FechaInicio = b.FechaHora,
+                        FechaFin = b.FechaHora.AddMinutes(b.DuracionMinutos > 0 ? b.DuracionMinutos : 60)
+                    }).ToList();
                 }
 
                 return resultado;

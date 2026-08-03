@@ -84,7 +84,7 @@
                         var duracionHoras = Math.Max(1, (int)Math.Round((bloque.FechaFin - bloque.FechaInicio).TotalHours));
 
                         <div class="agenda-bloque"
-                             style="grid-column: @(diaIndex + 2); grid-row: @(horaInicioIdx + 2) / span @duracionHoras; background-color: @(string.IsNullOrEmpty(bloque.Color) ? "#6c5ce7" : bloque.Color);"
+                             style="grid-column: @(diaIndex + 2); grid-row: @(horaInicioIdx + 2) / span @duracionHoras; background-color: @(string.IsNullOrEmpty(bloque.Color) ? "#5f9fe0" : bloque.Color);"
                              draggable="true"
                              @ondragstart="() => IniciarArrastre(bloque)"
                              @onclick="() => AbrirFormularioEdicion(bloque)"
@@ -208,6 +208,17 @@
             cargando = false;
         }
         await InvokeAsync(StateHasChanged);
+    }
+
+    // Expuesto para que Home.razor pueda refrescar la Agenda desde afuera (ej. después de que
+    // la IA agregue bloques nuevos) sin depender de que el usuario navegue de semana. Si se le
+    // da una fecha (ej. la del primer bloque nuevo), salta a la semana que la contiene — si no,
+    // solo recarga la semana que ya se estaba mostrando.
+    public async Task RecargarAsync(DateTime? irA = null)
+    {
+        if (irA.HasValue)
+            InicioSemana = InicioDeSemana(irA.Value);
+        await CargarBloques();
     }
 
     private async Task SemanaAnterior() { InicioSemana = InicioSemana.AddDays(-7); await CargarBloques(); }

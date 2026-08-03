@@ -10,6 +10,7 @@ namespace Gnosis.WebUI
         Task<AuthResultado> RegistrarAsync(string email, string password, string? nombreVisible);
         Task<AuthResultado> LoginAsync(string email, string password);
         Task<AuthResultado> ConfirmarCorreoAsync(string email, string token);
+        Task<AuthResultado> EntrarComoInvitadoAsync();
         Task<OperacionResultado> ReenviarConfirmacionAsync(string email);
         Task<OperacionResultado> OlvidePasswordAsync(string email);
         Task<OperacionResultado> RestablecerPasswordAsync(string email, string token, string nuevaPassword);
@@ -55,6 +56,9 @@ namespace Gnosis.WebUI
 
         public async Task<AuthResultado> ConfirmarCorreoAsync(string email, string token) =>
             await EnviarConTokenAsync("api/auth/confirmar-correo", new { Email = email, Token = token }, esperaToken: true);
+
+        public async Task<AuthResultado> EntrarComoInvitadoAsync() =>
+            await EnviarConTokenAsync("api/auth/invitado", new { }, esperaToken: true);
 
         public async Task<OperacionResultado> ReenviarConfirmacionAsync(string email) =>
             await EnviarMensajeAsync("api/auth/reenviar-confirmacion", new { Email = email });

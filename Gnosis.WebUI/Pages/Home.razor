@@ -10,6 +10,7 @@
 @inject Gnosis.WebUI.ISesionEnfoqueHttpProxy SesionProxy
 @inject Gnosis.WebUI.services.TokenStorageService TokenStorage
 @inject AuthenticationStateProvider AuthStateProvider
+@inject Gnosis.WebUI.IBloqueTiempoHttpProxy BloqueProxy
 @using Gnosis.Business.Models
 @using Gnosis.WebUI.Components
 @using Gnosis.WebUI.Services
@@ -31,7 +32,7 @@ else
                 allow="autoplay; encrypted-media"
                 referrerpolicy="strict-origin-when-cross-origin">
         </iframe>
-        <div class="video-bg-overlay"></div>
+        <div class="video-bg-overlay @(ocultandoTransicionFondo ? "video-bg-overlay-transicion" : "")"></div>
     </div>
 
     <div style="position:fixed; width:1px; height:1px; opacity:0; pointer-events:none; z-index:-1;">
@@ -219,7 +220,8 @@ else
                 OnArrastre="OnMouseDownAudio" />
 
     <!-- PANEL AGENDA -->
-    <PanelAgenda PosX="agendaX"
+    <PanelAgenda @ref="panelAgendaRef"
+                 PosX="agendaX"
                  PosY="agendaY"
                  Minimizado="agendaMinimizado"
                  OnMinimizadoCambiado="v => agendaMinimizado = v"
@@ -235,7 +237,7 @@ else
                      OnArrastre="OnMouseDownDashboard" />
 
     <!-- BARRA IA -->
-    <PanelIA OnTareasCreadas="AgregarTareasDesdeIA" />
+    <PanelIA OnTareasCreadas="AgregarTareasDesdeIA" OnBloquesCreados="AgregarBloquesDesdeIA" />
 }
 
 @code {
@@ -244,6 +246,9 @@ else
     // Referencia al panel del Dashboard para poder refrescarlo cuando termina un Pomodoro
     // o se marca una tarea, sin depender de que el usuario le dé clic a "Actualizar".
     private PanelDashboard? panelDashboardRef;
+
+    // Referencia al panel de Agenda, para poder refrescarlo cuando la IA agrega bloques nuevos.
+    private PanelAgenda? panelAgendaRef;
 
     // ── Estado paneles ───────────────────────────────────────────
     private bool pomodoroMinimizado = false;
@@ -350,6 +355,37 @@ else
         await InvokeAsync(StateHasChanged);
     }
 
+    // ── Callback: bloques de Agenda creados por la IA ────────────
+    private async Task AgregarBloquesDesdeIA(List<BloqueTiempoModel> bloquesNuevos)
+    {
+        var huboError = false;
+        foreach (var bloque in bloquesNuevos)
+        {
+            try
+            {
+                await BloqueProxy.CrearAsync(bloque);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Gnosis] Error al crear bloque de agenda desde IA: {ex.Message}");
+                huboError = true;
+            }
+        }
+
+        if (huboError)
+            errorTareas = "No se pudo guardar uno o más bloques en la Agenda. Verifica tu conexión e inténtalo de nuevo.";
+
+        // Se expande la Agenda (si estaba minimizada) y se recarga para que los bloques nuevos
+        // se vean de inmediato, sin que el usuario tenga que abrirla y refrescarla manualmente.
+        agendaMinimizado = false;
+        await InvokeAsync(StateHasChanged);
+        if (panelAgendaRef != null)
+        {
+            var primeraFecha = bloquesNuevos.OrderBy(b => b.FechaInicio).Select(b => (DateTime?)b.FechaInicio).FirstOrDefault();
+            await panelAgendaRef.RecargarAsync(primeraFecha);
+        }
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -434,8 +470,8 @@ else
                 Pomodoro.OnSesionTerminada -= OnSesionTerminada;
                 Pomodoro.OnSesionTerminada += OnSesionTerminada;
             }
-            EstadoFondo.OnCambio -= ActualizarPantalla;
-            EstadoFondo.OnCambio += ActualizarPantalla;
+            EstadoFondo.OnCambio -= OnFondoCambiado;
+            EstadoFondo.OnCambio += OnFondoCambiado;
             await CargarTareas();
         }
         catch (Exception ex)
@@ -505,6 +541,21 @@ else
         var videoId = EstadoFondo.FondoActivo.YoutubeVideoId;
         var origen = NavManager.BaseUri.TrimEnd('/');
         return $"https://www.youtube.com/embed/{videoId}?autoplay=1&mute=1&loop=1&playlist={videoId}&controls=0&showinfo=0&rel=0&iv_load_policy=3&disablekb=1&modestbranding=1&enablejsapi=1&playsinline=1&origin={origen}";
+    }
+
+    // Al cambiar de fondo, el <iframe> de YouTube cambia de "src" y recarga desde cero —
+    // durante ese instante puede alcanzar a mostrarse brevemente su UI nativa (controles de
+    // pausa/siguiente) antes de que el autoplay arranque. Tapamos la pantalla con el overlay
+    // oscuro mientras tanto, y lo destapamos cuando el nuevo video ya debería estar reproduciendo.
+    private bool ocultandoTransicionFondo = false;
+
+    private async void OnFondoCambiado()
+    {
+        ocultandoTransicionFondo = true;
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(1200);
+        ocultandoTransicionFondo = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     private void ToggleConfiguracion() => mostrarConfiguracion = !mostrarConfiguracion;
@@ -628,7 +679,7 @@ else
             Pomodoro.OnTick -= ActualizarPantalla;
             Pomodoro.OnSesionTerminada -= OnSesionTerminada;
         }
-        EstadoFondo.OnCambio -= ActualizarPantalla;
+        EstadoFondo.OnCambio -= OnFondoCambiado;
         _dotnetRef?.Dispose();
     }
 }
