@@ -117,5 +117,73 @@ namespace Gnosis.WebUI.services
                 return new RespuestaIA { Texto = $"Error: {ex.Message}" };
             }
         }
+
+        // Task Breaker: pide 4-5 subtareas concretas para una tarea existente.
+        public async Task<List<string>> DesglosarTareaAsync(string tituloTarea, string? descripcionTarea = null, DateTime? fechaEntrega = null)
+        {
+            try
+            {
+                var request = new DesglosarTareaRequest
+                {
+                    TituloTarea = tituloTarea,
+                    DescripcionTarea = descripcionTarea,
+                    FechaEntrega = fechaEntrega
+                };
+                var response = await _http.PostAsJsonAsync("api/IA/desglosar", request);
+                if (!response.IsSuccessStatusCode) return new List<string>();
+
+                var raw = await response.Content.ReadFromJsonAsync<DesglosarTareaResponse>();
+                return raw?.Subtareas ?? new List<string>();
+            }
+            catch
+            {
+                return new List<string>();
+            }
+        }
+
+        // Daily Retrospective: resumen ejecutivo de las tareas completadas hoy.
+        public async Task<string> GenerarResumenDiaAsync(List<string> tareasCompletadas, int minutosEnfoque = 0, int sesionesEnfoque = 0)
+        {
+            try
+            {
+                var request = new ResumenDiaRequest
+                {
+                    TareasCompletadas = tareasCompletadas,
+                    MinutosEnfoque = minutosEnfoque,
+                    SesionesEnfoque = sesionesEnfoque
+                };
+                var response = await _http.PostAsJsonAsync("api/IA/resumen-dia", request);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    return $"No se pudo generar el resumen: {error}";
+                }
+
+                var raw = await response.Content.ReadFromJsonAsync<ResumenDiaResponse>();
+                return raw?.Resumen ?? "No se pudo generar el resumen.";
+            }
+            catch (Exception ex)
+            {
+                return $"Error: {ex.Message}";
+            }
+        }
+
+        // Estimador de Pomodoros: cuántos ciclos probablemente requiera una tarea.
+        public async Task<EstimarPomodorosResponse> EstimarPomodorosAsync(string tituloTarea, string? descripcionTarea = null)
+        {
+            try
+            {
+                var request = new EstimarPomodorosRequest { TituloTarea = tituloTarea, DescripcionTarea = descripcionTarea };
+                var response = await _http.PostAsJsonAsync("api/IA/estimar-pomodoros", request);
+                if (!response.IsSuccessStatusCode) return new EstimarPomodorosResponse { Pomodoros = 0 };
+
+                var raw = await response.Content.ReadFromJsonAsync<EstimarPomodorosResponse>();
+                return raw ?? new EstimarPomodorosResponse { Pomodoros = 0 };
+            }
+            catch
+            {
+                return new EstimarPomodorosResponse { Pomodoros = 0 };
+            }
+        }
     }
 }

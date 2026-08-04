@@ -55,6 +55,11 @@ builder.Services.AddHttpClient<IEstadisticasHttpProxy, EstadisticasHttpProxy>(cl
     client.BaseAddress = new Uri(apiBaseUrl);
 }).AddHttpMessageHandler<JwtAuthorizationHandler>();
 
+builder.Services.AddHttpClient<IGamificacionHttpProxy, GamificacionHttpProxy>(client =>
+{
+    client.BaseAddress = new Uri(apiBaseUrl);
+}).AddHttpMessageHandler<JwtAuthorizationHandler>();
+
 builder.Services.AddHttpClient<GnosisIAService>(client =>
 {
     client.BaseAddress = new Uri(apiBaseUrl);

@@ -298,6 +298,42 @@ body {
     }
 
 /* ==========================================
+   IA POR TAREA: DESGLOSAR (Task Breaker) + ESTIMAR POMODOROS
+   ========================================== */
+.btn-accion-ia {
+    background: transparent;
+    border: none;
+    color: rgba(142, 197, 255, 0.75);
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .btn-accion-ia:hover:not(:disabled) {
+        color: #8ec5ff;
+        background: rgba(142, 197, 255, 0.15);
+    }
+
+    .btn-accion-ia:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+
+.badge-estimacion-ia {
+    font-size: 0.7rem;
+    color: #1e1e1e;
+    background: linear-gradient(135deg, #cfe6ff, #8ec5ff);
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+/* ==========================================
    COLAPSAR/EXPANDIR SUBTAREAS DE UNA TAREA
    (para no tener que scrollear tanto cuando una tarea tiene muchas subtareas
    y se quiere llegar a otra tarea más abajo)
@@ -915,6 +951,34 @@ body {
     color: #fff;
     letter-spacing: 0.3px;
 }
+
+.ia-chat-header-acciones {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ia-btn-resumen-dia {
+    background: rgba(142, 197, 255, 0.12);
+    border: 1px solid rgba(142, 197, 255, 0.3);
+    color: #cfe6ff;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 10px;
+    border-radius: 999px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+    .ia-btn-resumen-dia:hover:not(:disabled) {
+        background: rgba(142, 197, 255, 0.22);
+    }
+
+    .ia-btn-resumen-dia:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
 
 .ia-btn-cerrar {
     background: none;

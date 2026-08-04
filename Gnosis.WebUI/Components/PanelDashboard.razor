@@ -1,6 +1,7 @@
 @* Gnosis.WebUI/Components/PanelDashboard.razor *@
 @* Feature: Dashboard de productividad - sesiones/minutos de enfoque y tareas completadas por semana *@
 @inject Gnosis.WebUI.IEstadisticasHttpProxy EstadisticasProxy
+@inject Gnosis.WebUI.IGamificacionHttpProxy GamificacionProxy
 
 <div id="panel-dashboard"
      class="panel-flotante panel-dashboard @(Minimizado ? "panel-minimizado borde-" + BordeMinimizado(PosX) : "")"
@@ -43,6 +44,34 @@
                     <span class="dashboard-racha-texto">@(estadisticas.RachaDiasActivos == 1 ? "día seguido activo" : "días seguidos activo")</span>
                 </div>
 
+                @if (gamificacion != null)
+                {
+                    <div class="dashboard-gamificacion">
+                        <div class="dashboard-nivel-fila">
+                            <span class="dashboard-nivel-badge">Nivel @gamificacion.Nivel</span>
+                            <span class="dashboard-xp-texto">@gamificacion.XpEnNivelActual / @gamificacion.XpParaSiguienteNivel XP</span>
+                        </div>
+                        <div class="dashboard-xp-barra-pista">
+                            <div class="dashboard-xp-barra-relleno"
+                                 style="width: @(gamificacion.XpParaSiguienteNivel == 0 ? 0 : gamificacion.XpEnNivelActual * 100 / gamificacion.XpParaSiguienteNivel)%;"></div>
+                        </div>
+
+                        @if (gamificacion.SiembrasDelMes.Count > 0)
+                        {
+                            <div class="dashboard-jardin-titulo">Jardín de Enfoque · @DateTime.Today.ToString("MMMM", CulturaEs)</div>
+                            <div class="dashboard-jardin">
+                                @foreach (var siembra in gamificacion.SiembrasDelMes)
+                                {
+                                    <span class="dashboard-jardin-item @(siembra.Crecio ? "dashboard-jardin-crecio" : "dashboard-jardin-murio")"
+                                          title="@siembra.Fecha.ToString("d MMM", CulturaEs) · @(siembra.Crecio ? "Creció" : "Se marchitó")">
+                                        @(siembra.Crecio ? "🌱" : "🥀")
+                                    </span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
                 <div class="dashboard-chart">
                     @foreach (var dia in estadisticas.Dias)
                     {
@@ -76,7 +105,7 @@
                     </div>
                 </div>
 
-                <button class="agenda-btn-hoy dashboard-btn-actualizar" @onclick="() => CargarEstadisticas()">Actualizar</button>
+                <button class="agenda-btn-hoy dashboard-btn-actualizar" @onclick="() => Actualizar()">Actualizar</button>
             }
         </div>
     }
@@ -92,6 +121,7 @@
     private static readonly System.Globalization.CultureInfo CulturaEs = new("es-ES");
 
     private Gnosis.Business.Models.EstadisticasDashboardModel? estadisticas;
+    private Gnosis.Business.Models.GamificacionModel? gamificacion;
     private bool cargando = true;
 
     private int MaxMinutos
@@ -103,14 +133,29 @@
         }
     }
 
-    protected override async Task OnInitializedAsync() => await CargarEstadisticas();
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarEstadisticas();
+        await CargarGamificacion();
+    }
 
     // Punto de entrada público: Home.razor lo llama (via @ref) cuando termina una sesión de
-    // Pomodoro o se marca una tarea, para que el Dashboard refleje el cambio sin que el usuario
-    // tenga que darle clic manualmente a "Actualizar" ni recargar la página.
+    // Pomodoro, se marca una tarea o se resuelve una siembra del Focus Forest, para que el
+    // Dashboard refleje el cambio sin que el usuario tenga que darle clic manualmente a
+    // "Actualizar" ni recargar la página.
     // mostrarCargando=false: no pasa por el estado "Cargando estadísticas...", así el refresco
     // automático solo actualiza los números en su lugar en vez de hacer parpadear el panel.
-    public async Task RecargarAsync() => await CargarEstadisticas(mostrarCargando: false);
+    public async Task RecargarAsync()
+    {
+        await CargarEstadisticas(mostrarCargando: false);
+        await CargarGamificacion();
+    }
+
+    private async Task Actualizar()
+    {
+        await CargarEstadisticas();
+        await CargarGamificacion();
+    }
 
     private async Task CargarEstadisticas(bool mostrarCargando = true)
     {
@@ -133,6 +178,22 @@
         finally
         {
             cargando = false;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // Falla en silencio: XP/Nivel/Jardín son un extra de gamificación, no debe tumbar el
+    // resto del Dashboard si el backend no responde.
+    private async Task CargarGamificacion()
+    {
+        try
+        {
+            gamificacion = await GamificacionProxy.ObtenerAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Gnosis] Error al cargar gamificación: {ex.Message}");
+            gamificacion = null;
         }
         await InvokeAsync(StateHasChanged);
     }

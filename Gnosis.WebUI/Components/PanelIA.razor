@@ -10,8 +10,16 @@
     {
         <div class="ia-chat-wrapper">
             <div class="ia-chat-header">
-                <span class="ia-chat-titulo">Gnosis IA</span>
-                <button class="ia-btn-cerrar" @onclick="() => iaExpandida = false">&#x2715;</button>
+                <span class="ia-chat-titulo">Eve</span>
+                <div class="ia-chat-header-acciones">
+                    @if (ResumenDiaProvider != null)
+                    {
+                        <button class="ia-btn-resumen-dia" title="Resumen de cierre de día" disabled="@iaCargando" @onclick="PedirResumenDelDia">
+                            Resumen de hoy
+                        </button>
+                    }
+                    <button class="ia-btn-cerrar" @onclick="() => iaExpandida = false">&#x2715;</button>
+                </div>
             </div>
 
             <div class="ia-chat-mensajes" id="ia-mensajes">
@@ -65,7 +73,7 @@
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
         </div>
-        <span class="ia-barra-texto">Gnosis IA &mdash; @(iaExpandida ? "cerrar" : "preguntame algo")</span>
+        <span class="ia-barra-texto">Eve &mdash; @(iaExpandida ? "cerrar" : "pregúntame algo")</span>
     </div>
 </div>
 
@@ -75,6 +83,11 @@
 
     // ── Parámetro: callback para cuando la IA agenda bloques en la Agenda ─
     [Parameter] public EventCallback<List<Gnosis.Business.Models.BloqueTiempoModel>> OnBloquesCreados { get; set; }
+
+    // ── Parámetro: delegado que arma y pide el resumen de cierre de día ───
+    // Vive en Home.razor (quien tiene la lista de tareas ya cargada) — este panel solo dispara
+    // la llamada y muestra el resultado como un mensaje más del chat.
+    [Parameter] public Func<Task<string>>? ResumenDiaProvider { get; set; }
 
     // ── Estado interno ───────────────────────────────────────────
     private bool iaExpandida = false;
@@ -146,5 +159,36 @@
     private async Task HandleIAKeyUp(KeyboardEventArgs e)
     {
         if (e.Key == "Enter") await EnviarMensajeIA();
+    }
+
+    // ── Resumen de cierre de día (Daily Retrospective) ────────────
+    private async Task PedirResumenDelDia()
+    {
+        if (ResumenDiaProvider == null || iaCargando) return;
+
+        iaExpandida = true;
+        iaCargando = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var resumen = await ResumenDiaProvider();
+            iaMensajes.Add(new MensajeChat(resumen, EsUsuario: false));
+        }
+        catch (Exception ex)
+        {
+            iaMensajes.Add(new MensajeChat($"Error: {ex.Message}", EsUsuario: false));
+        }
+        finally
+        {
+            iaCargando = false;
+            await InvokeAsync(StateHasChanged);
+            try
+            {
+                await JS.InvokeVoidAsync("eval",
+                    "var el = document.getElementById('ia-mensajes'); if(el) el.scrollTop = el.scrollHeight;");
+            }
+            catch { }
+        }
     }
 }

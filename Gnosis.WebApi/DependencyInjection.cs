@@ -41,6 +41,7 @@ internal static class DependencyInjection
         services.AddScoped<ISesionEnfoqueService, SesionEnfoqueService>();
         services.AddScoped<IBloqueTiempoService, BloqueTiempoService>();
         services.AddScoped<IEstadisticasService, EstadisticasService>();
+        services.AddScoped<IGamificacionService, GamificacionService>();
         services.AddScoped<ITokenService, TokenService>();
         // AddHttpClient (no AddScoped) porque BrevoEmailSender necesita un HttpClient inyectado;
         // esto registra tanto el HttpClient administrado como el propio IEmailSender.

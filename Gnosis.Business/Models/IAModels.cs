@@ -48,6 +48,45 @@ namespace Gnosis.Business.Models
         public DateTime? FechaEntrega { get; set; }
     }
 
+    // ── Desglose de tarea con IA (Task Breaker) ──────────────────────
+    public class DesglosarTareaRequest
+    {
+        public string TituloTarea { get; set; } = string.Empty;
+        public string? DescripcionTarea { get; set; }
+        public DateTime? FechaEntrega { get; set; }
+    }
+
+    public class DesglosarTareaResponse
+    {
+        public List<string> Subtareas { get; set; } = new();
+    }
+
+    // ── Resumen de cierre de día (Daily Retrospective) ───────────────
+    public class ResumenDiaRequest
+    {
+        public List<string> TareasCompletadas { get; set; } = new();
+        public int MinutosEnfoque { get; set; }
+        public int SesionesEnfoque { get; set; }
+    }
+
+    public class ResumenDiaResponse
+    {
+        public string Resumen { get; set; } = string.Empty;
+    }
+
+    // ── Estimador de Pomodoros por tarea ──────────────────────────────
+    public class EstimarPomodorosRequest
+    {
+        public string TituloTarea { get; set; } = string.Empty;
+        public string? DescripcionTarea { get; set; }
+    }
+
+    public class EstimarPomodorosResponse
+    {
+        public int Pomodoros { get; set; }
+        public string? Justificacion { get; set; }
+    }
+
     public class BloqueIADto
     {
         public string Titulo { get; set; } = string.Empty;

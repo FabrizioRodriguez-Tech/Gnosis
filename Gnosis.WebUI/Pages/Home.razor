@@ -11,6 +11,8 @@
 @inject Gnosis.WebUI.services.TokenStorageService TokenStorage
 @inject AuthenticationStateProvider AuthStateProvider
 @inject Gnosis.WebUI.IBloqueTiempoHttpProxy BloqueProxy
+@inject Gnosis.WebUI.IGamificacionHttpProxy GamificacionProxy
+@inject Gnosis.WebUI.services.GnosisIAService IAService
 @using Gnosis.Business.Models
 @using Gnosis.WebUI.Components
 @using Gnosis.WebUI.Services
@@ -86,13 +88,13 @@ else
                     <div class="timer-actions-right">
                         @if (Pomodoro?.NombreEstadoActual == "Pausado" || Pomodoro?.NombreEstadoActual == "Detenido")
                         {
-                            <button class="btn-timer-main" @onclick="() => Pomodoro?.Iniciar()">Start</button>
+                            <button class="btn-timer-main" @onclick="IniciarPomodoroConSiembra">Start</button>
                         }
                         else
                         {
                             <button class="btn-timer-main" @onclick="() => Pomodoro?.Pausar()">Pause</button>
                         }
-                        <button class="btn-timer-icon" @onclick="() => Pomodoro?.Detener()" title="Reiniciar">&#x21BB;</button>
+                        <button class="btn-timer-icon" @onclick="CancelarPomodoroConSiembra" title="Reiniciar">&#x21BB;</button>
                     </div>
                 </div>
 
@@ -198,6 +200,20 @@ else
                                         <option value="A tiempo">A tiempo</option>
                                         <option value="Vencida">Vencida</option>
                                     </select>
+                                    @if (estimacionesPomodoro.TryGetValue(tarea.Id, out var pomodorosEstimados) && pomodorosEstimados > 0)
+                                    {
+                                        <span class="badge-estimacion-ia" title="@estimacionesJustificacion.GetValueOrDefault(tarea.Id)">~@pomodorosEstimados 🍅</span>
+                                    }
+                                    <button class="btn-accion-ia" title="Estimar pomodoros con IA"
+                                            disabled="@tareasProcesandoIA.Contains(tarea.Id)"
+                                            @onclick="() => EstimarPomodorosTarea(tarea)">
+                                        @(tareasProcesandoIA.Contains(tarea.Id) ? "…" : "⏱")
+                                    </button>
+                                    <button class="btn-accion-ia" title="Desglosar con IA"
+                                            disabled="@tareasProcesandoIA.Contains(tarea.Id)"
+                                            @onclick="() => DesglosarTareaConIA(tarea)">
+                                        @(tareasProcesandoIA.Contains(tarea.Id) ? "…" : "✨")
+                                    </button>
                                     <button class="btn-delete-task" @onclick="() => EliminarTareaPadre(tarea)" title="Eliminar">&#x00D7;</button>
                                 </div>
 
@@ -275,7 +291,7 @@ else
                      OnArrastre="OnMouseDownDashboard" />
 
     <!-- BARRA IA -->
-    <PanelIA OnTareasCreadas="AgregarTareasDesdeIA" OnBloquesCreados="AgregarBloquesDesdeIA" />
+    <PanelIA OnTareasCreadas="AgregarTareasDesdeIA" OnBloquesCreados="AgregarBloquesDesdeIA" ResumenDiaProvider="GenerarResumenDelDiaAsync" />
 }
 
 @code {
@@ -504,6 +520,58 @@ else
         pomodoroMinimizado = !pomodoroMinimizado;
     }
 
+    // ── Focus Forest (gamificación) ──────────────────────────────
+    // Marca si hay una "planta" viva esperando resolverse: se siembra al arrancar un ciclo
+    // de Enfoque desde cero y se resuelve (crece o se marchita) al terminar o cancelar.
+    // No hay estado "pendiente" en la base de datos — solo vive aquí mientras la sesión corre.
+    private bool siembraEnfoqueActiva = false;
+
+    private void IniciarPomodoroConSiembra()
+    {
+        if (Pomodoro == null) return;
+
+        // Solo cuenta como una siembra nueva si arranca desde cero en modo Enfoque; reanudar
+        // desde Pausado es la misma planta que ya se sembró.
+        var esInicioFresco = Pomodoro.ModoActual == Gnosis.WebUI.ModoPomodoro.Enfoque
+            && Pomodoro.NombreEstadoActual == "Detenido";
+
+        Pomodoro.Iniciar();
+
+        if (esInicioFresco)
+            siembraEnfoqueActiva = true;
+    }
+
+    private void CancelarPomodoroConSiembra()
+    {
+        if (Pomodoro == null) return;
+
+        var modoAntes = Pomodoro.ModoActual;
+        var estadoAntes = Pomodoro.NombreEstadoActual;
+
+        Pomodoro.Detener();
+
+        // Si se cancela un ciclo de Enfoque que ya estaba corriendo o en pausa, la planta muere.
+        if (siembraEnfoqueActiva && modoAntes == Gnosis.WebUI.ModoPomodoro.Enfoque
+            && (estadoAntes == "Corriendo" || estadoAntes == "Pausado"))
+        {
+            siembraEnfoqueActiva = false;
+            _ = RegistrarSiembraAsync(crecio: false);
+        }
+    }
+
+    private async Task RegistrarSiembraAsync(bool crecio)
+    {
+        try
+        {
+            if (GamificacionProxy != null) await GamificacionProxy.RegistrarSiembraAsync(crecio);
+            if (panelDashboardRef != null) await panelDashboardRef.RecargarAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Gnosis] Error al registrar siembra: {ex.Message}");
+        }
+    }
+
     private void ToggleTodo()
     {
         if (huboArrastreReal) { huboArrastreReal = false; return; }
@@ -552,6 +620,104 @@ else
         {
             Console.WriteLine($"[Gnosis] Error al actualizar etiqueta: {ex.Message}");
         }
+    }
+
+    // ── IA por tarea: Task Breaker + Estimador de Pomodoros ──────
+    private HashSet<Guid> tareasProcesandoIA = new();
+    private Dictionary<Guid, int> estimacionesPomodoro = new();
+    private Dictionary<Guid, string> estimacionesJustificacion = new();
+
+    private async Task DesglosarTareaConIA(TareaModel tarea)
+    {
+        if (tareasProcesandoIA.Contains(tarea.Id)) return;
+        tareasProcesandoIA.Add(tarea.Id);
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var titulos = await IAService.DesglosarTareaAsync(tarea.Titulo, tarea.Descripcion, tarea.FechaEntrega);
+            foreach (var titulo in titulos)
+            {
+                var sub = new TareaModel
+                {
+                    Id = Guid.NewGuid(),
+                    Titulo = titulo,
+                    FechaCreacion = DateTime.UtcNow,
+                    TareaPadreId = tarea.Id
+                };
+                try
+                {
+                    if (TareaProxy != null) await TareaProxy.CrearTareaAsync(sub);
+                    tarea.Subtareas.Add(sub);
+                }
+                catch (Exception exSub)
+                {
+                    Console.WriteLine($"[Gnosis] Error al crear subtarea desglosada: {exSub.Message}");
+                }
+            }
+            if (titulos.Count == 0)
+                errorTareas = "La IA no pudo desglosar esta tarea. Intenta de nuevo.";
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Gnosis] Error al desglosar tarea con IA: {ex.Message}");
+            errorTareas = "No se pudo desglosar la tarea. Verifica tu conexión e inténtalo de nuevo.";
+        }
+        finally
+        {
+            tareasProcesandoIA.Remove(tarea.Id);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task EstimarPomodorosTarea(TareaModel tarea)
+    {
+        if (tareasProcesandoIA.Contains(tarea.Id)) return;
+        tareasProcesandoIA.Add(tarea.Id);
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var resultado = await IAService.EstimarPomodorosAsync(tarea.Titulo, tarea.Descripcion);
+            if (resultado.Pomodoros > 0)
+            {
+                estimacionesPomodoro[tarea.Id] = resultado.Pomodoros;
+                if (!string.IsNullOrWhiteSpace(resultado.Justificacion))
+                    estimacionesJustificacion[tarea.Id] = resultado.Justificacion;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Gnosis] Error al estimar pomodoros: {ex.Message}");
+        }
+        finally
+        {
+            tareasProcesandoIA.Remove(tarea.Id);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    // ── IA: Resumen de cierre de día (Daily Retrospective) ───────
+    // Delegado que PanelIA invoca cuando el usuario pide el resumen del día; vive aquí porque
+    // Home.razor es quien tiene la lista de tareas ya cargada (PanelIA no la conoce).
+    private async Task<string> GenerarResumenDelDiaAsync()
+    {
+        var hoy = DateTime.Today;
+        var completadasHoy = new List<string>();
+
+        if (tareas != null)
+        {
+            foreach (var t in tareas)
+            {
+                if (t.IsCompletada && t.FechaCompletada?.Date == hoy)
+                    completadasHoy.Add(t.Titulo);
+                foreach (var sub in t.Subtareas)
+                    if (sub.IsCompletada && sub.FechaCompletada?.Date == hoy)
+                        completadasHoy.Add(sub.Titulo);
+            }
+        }
+
+        return await IAService.GenerarResumenDiaAsync(completadasHoy);
     }
 
     private int TiempoPomodoro
@@ -639,6 +805,14 @@ else
                 {
                     Console.WriteLine($"[Gnosis] Error al registrar sesión: {exSesion.Message}");
                 }
+            }
+
+            // Focus Forest: si el ciclo que acaba de terminar era de Enfoque y había una planta
+            // sembrada, se completó de principio a fin sin cancelarse: la planta crece.
+            if (modoTerminado == Gnosis.WebUI.ModoPomodoro.Enfoque && siembraEnfoqueActiva)
+            {
+                siembraEnfoqueActiva = false;
+                await RegistrarSiembraAsync(crecio: true);
             }
 
             await InvokeAsync(StateHasChanged);

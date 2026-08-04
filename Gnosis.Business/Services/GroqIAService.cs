@@ -19,13 +19,19 @@ internal class GroqIAService(HttpClient httpClient, IConfiguration configuracion
 {
     private static readonly JsonSerializerOptions JsonOpciones = new(JsonSerializerDefaults.Web);
 
+    // Nombres en español a mano (sin CultureInfo/ICU): evita que esto reviente en un entorno con
+    // globalización invariante (ej. contenedores recortados) donde new CultureInfo("es-ES") lanza
+    // CultureNotFoundException — esto ya tumbó CADA consulta a la IA una vez, ver ConsultarAsync.
+    private static readonly string[] DiasEs = { "domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado" };
+    private static readonly string[] MesesEs = { "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre" };
+
     // El prompt define el contrato completo: cuándo responder como chat normal y cuándo proponer
     // tareas, cómo repartir el trabajo según la fecha de entrega, y el JSON exacto que debe devolver
     // (que coincide con IAResponse/TareaIADto, los mismos DTOs que ya consume GnosisIAService en el
     // frontend). El ejemplo del cálculo con 50 ejercicios viene directo de cómo el usuario describió
     // el comportamiento esperado.
-    private const string PromptSistema = """
-        Eres "Gnosis IA", el asistente integrado en Gnosis, una app de productividad para estudiantes
+    private const string PromptSistemaChat = """
+        Eres "Eve", el asistente de IA integrado en Gnosis, una app de productividad para estudiantes
         (Pomodoro, lista de tareas con subtareas, agenda semanal con bloques de horario, dashboard).
 
         Tienes tres capacidades reales — y SOLO estas tres. Todo lo que "hagas" tiene que quedar
@@ -151,33 +157,54 @@ internal class GroqIAService(HttpClient httpClient, IConfiguration configuracion
         Omite "tareas" y/o "bloques" (o mándalos como null) cuando no apliquen para ese mensaje.
         """;
 
+    private const string PromptSistemaDesglose = """
+        Eres "Eve", el asistente de IA integrado en Gnosis, una app de productividad para estudiantes.
+        Tu única tarea ahora es desglosar UNA tarea que el usuario ya tiene en su lista en 4 o 5
+        subtareas lógicas, concretas y accionables (no genéricas como "trabajar en el proyecto" —
+        cada una debe describir un paso real y específico).
+
+        Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON, sin markdown), con esta
+        forma exacta:
+
+        { "subtareas": ["subtarea 1", "subtarea 2", "subtarea 3", "subtarea 4"] }
+
+        Entre 4 y 5 elementos, ni más ni menos.
+        """;
+
+    private const string PromptSistemaResumenDia = """
+        Eres "Eve", el asistente de IA integrado en Gnosis, una app de productividad para estudiantes.
+        Se te da la lista de tareas que el usuario completó hoy (y opcionalmente minutos de enfoque y
+        sesiones de Pomodoro). Genera un resumen ejecutivo breve (2 a 4 frases), en tono cercano y
+        motivador pero sin exagerar, que destaque lo logrado y, si aplica, sugiera un cierre de día
+        razonable. Si no hay tareas completadas, dilo con honestidad y anima a retomar mañana — no
+        inventes logros que no están en la lista.
+
+        Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON, sin markdown), con esta
+        forma exacta:
+
+        { "resumen": "texto del resumen ejecutivo" }
+        """;
+
+    private const string PromptSistemaEstimador = """
+        Eres "Eve", el asistente de IA integrado en Gnosis, una app de productividad para estudiantes.
+        Se te da el título (y opcionalmente la descripción) de una tarea. Estima cuántos ciclos de
+        Pomodoro (bloques de ~25 minutos de trabajo enfocado) probablemente requiera completarla,
+        basándote en la complejidad y alcance que describe el título/descripción. Sé realista: la
+        mayoría de tareas de estudio caben entre 1 y 6 pomodoros; usa números más altos solo para
+        tareas claramente grandes (proyectos, entregas con muchas partes).
+
+        Responde ÚNICAMENTE con un JSON válido (sin texto fuera del JSON, sin markdown), con esta
+        forma exacta:
+
+        { "pomodoros": 3, "justificacion": "explicación breve de por qué" }
+        """;
+
     public async Task<IAResponse> ConsultarAsync(IARequest request)
     {
-        var apiKey = configuracion["Groq:ApiKey"]
-            ?? throw new InvalidOperationException("Falta configurar Groq:ApiKey (appsettings.Development.json o variables de entorno).");
-        var modelo = configuracion["Groq:Modelo"] ?? "openai/gpt-oss-120b";
-
-        // La fecha/hora actual va como un segundo mensaje "system" (no dentro del const de arriba)
-        // para que se recalcule en cada request — Groq no tiene noción del reloj real, y sin esto
-        // no puede resolver "el próximo martes" ni nada relativo a fechas de forma confiable.
-        // Nombres en español a mano (sin CultureInfo/ICU): evita que esto reviente en un entorno
-        // con globalización invariante (ej. contenedores recortados) donde new CultureInfo("es-ES")
-        // lanza CultureNotFoundException y tumbaba CADA consulta a la IA.
-        var ahora = DateTime.Now;
-        string[] diasEs = { "domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado" };
-        string[] mesesEs = { "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre" };
-        var nombreDia = diasEs[(int)ahora.DayOfWeek];
-        var nombreMes = mesesEs[ahora.Month - 1];
-        var contextoFecha =
-            $"Fecha y hora actual: {ahora:yyyy-MM-dd HH:mm} " +
-            $"({char.ToUpper(nombreDia[0]) + nombreDia[1..]} {ahora.Day} de {nombreMes} de {ahora.Year}). " +
-            "Usa esta fecha como referencia para calcular cualquier fecha relativa " +
-            "(\"mañana\", \"el próximo martes\", \"en 10 días\", etc.) y para el campo \"fechaHora\" de los bloques.";
-
         var mensajes = new List<object>
         {
-            new { role = "system", content = PromptSistema },
-            new { role = "system", content = contextoFecha }
+            new { role = "system", content = PromptSistemaChat },
+            new { role = "system", content = ContextoFechaActual() }
         };
 
         if (request.Historial != null)
@@ -188,25 +215,7 @@ internal class GroqIAService(HttpClient httpClient, IConfiguration configuracion
 
         mensajes.Add(new { role = "user", content = request.Mensaje });
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.groq.com/openai/v1/chat/completions");
-        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-        httpRequest.Content = JsonContent.Create(new
-        {
-            model = modelo,
-            messages = mensajes,
-            response_format = new { type = "json_object" },
-            temperature = 0.4
-        });
-
-        var respuesta = await httpClient.SendAsync(httpRequest);
-        if (!respuesta.IsSuccessStatusCode)
-        {
-            var detalle = await respuesta.Content.ReadAsStringAsync();
-            throw new InvalidOperationException($"Groq devolvió {(int)respuesta.StatusCode}: {detalle}");
-        }
-
-        var payload = await respuesta.Content.ReadFromJsonAsync<GroqChatResponse>(JsonOpciones);
-        var contenido = payload?.Choices?.FirstOrDefault()?.Message?.Content;
+        var contenido = await EjecutarLlamadaAsync(mensajes);
 
         if (string.IsNullOrWhiteSpace(contenido))
             return new IAResponse { Modo = "chat", Texto = "No obtuve respuesta de la IA. Intenta de nuevo." };
@@ -225,6 +234,141 @@ internal class GroqIAService(HttpClient httpClient, IConfiguration configuracion
         }
 
         return new IAResponse { Modo = "chat", Texto = contenido };
+    }
+
+    public async Task<DesglosarTareaResponse> DesglosarTareaAsync(DesglosarTareaRequest request)
+    {
+        var detalle = $"Tarea: {request.TituloTarea}";
+        if (!string.IsNullOrWhiteSpace(request.DescripcionTarea))
+            detalle += $"\nDescripción: {request.DescripcionTarea}";
+        if (request.FechaEntrega.HasValue)
+            detalle += $"\nFecha de entrega: {request.FechaEntrega:yyyy-MM-dd}";
+
+        var mensajes = new List<object>
+        {
+            new { role = "system", content = PromptSistemaDesglose },
+            new { role = "system", content = ContextoFechaActual() },
+            new { role = "user", content = detalle }
+        };
+
+        var contenido = await EjecutarLlamadaAsync(mensajes);
+
+        try
+        {
+            var parseado = JsonSerializer.Deserialize<DesglosarTareaResponse>(contenido, JsonOpciones);
+            if (parseado?.Subtareas != null && parseado.Subtareas.Count > 0)
+                return parseado;
+        }
+        catch (JsonException)
+        {
+            // Se maneja abajo devolviendo una lista vacía en vez de tronar.
+        }
+
+        return new DesglosarTareaResponse();
+    }
+
+    public async Task<ResumenDiaResponse> GenerarResumenDiaAsync(ResumenDiaRequest request)
+    {
+        var detalle = request.TareasCompletadas.Count == 0
+            ? "No se completó ninguna tarea hoy."
+            : "Tareas completadas hoy:\n" + string.Join("\n", request.TareasCompletadas.Select(t => $"- {t}"));
+
+        detalle += $"\nMinutos de enfoque: {request.MinutosEnfoque}\nSesiones de Pomodoro: {request.SesionesEnfoque}";
+
+        var mensajes = new List<object>
+        {
+            new { role = "system", content = PromptSistemaResumenDia },
+            new { role = "user", content = detalle }
+        };
+
+        var contenido = await EjecutarLlamadaAsync(mensajes);
+
+        try
+        {
+            var parseado = JsonSerializer.Deserialize<ResumenDiaResponse>(contenido, JsonOpciones);
+            if (parseado != null && !string.IsNullOrWhiteSpace(parseado.Resumen))
+                return parseado;
+        }
+        catch (JsonException)
+        {
+            // Se maneja abajo.
+        }
+
+        return new ResumenDiaResponse { Resumen = contenido ?? "No se pudo generar el resumen." };
+    }
+
+    public async Task<EstimarPomodorosResponse> EstimarPomodorosAsync(EstimarPomodorosRequest request)
+    {
+        var detalle = $"Tarea: {request.TituloTarea}";
+        if (!string.IsNullOrWhiteSpace(request.DescripcionTarea))
+            detalle += $"\nDescripción: {request.DescripcionTarea}";
+
+        var mensajes = new List<object>
+        {
+            new { role = "system", content = PromptSistemaEstimador },
+            new { role = "user", content = detalle }
+        };
+
+        var contenido = await EjecutarLlamadaAsync(mensajes);
+
+        try
+        {
+            var parseado = JsonSerializer.Deserialize<EstimarPomodorosResponse>(contenido, JsonOpciones);
+            if (parseado != null && parseado.Pomodoros > 0)
+                return parseado;
+        }
+        catch (JsonException)
+        {
+            // Se maneja abajo.
+        }
+
+        return new EstimarPomodorosResponse { Pomodoros = 1, Justificacion = "Estimación por defecto (la IA no respondió en el formato esperado)." };
+    }
+
+    // La fecha/hora actual va como un mensaje "system" recalculado en cada request — Groq no
+    // tiene noción del reloj real, y sin esto no puede resolver "el próximo martes" ni nada
+    // relativo a fechas de forma confiable.
+    private static string ContextoFechaActual()
+    {
+        var ahora = DateTime.Now;
+        var nombreDia = DiasEs[(int)ahora.DayOfWeek];
+        var nombreMes = MesesEs[ahora.Month - 1];
+        return $"Fecha y hora actual: {ahora:yyyy-MM-dd HH:mm} " +
+               $"({char.ToUpper(nombreDia[0]) + nombreDia[1..]} {ahora.Day} de {nombreMes} de {ahora.Year}). " +
+               "Usa esta fecha como referencia para calcular cualquier fecha relativa " +
+               "(\"mañana\", \"el próximo martes\", \"en 10 días\", etc.) y para el campo \"fechaHora\" de los bloques.";
+    }
+
+    // Helper compartido: arma la petición HTTP a Groq (JSON mode) con la lista de mensajes que le
+    // pase cada método público, y devuelve el contenido de texto ya extraído de la respuesta.
+    // Centraliza la lectura de la API key/modelo, el manejo de errores HTTP y el parseo del
+    // envoltorio de "choices" de Groq — cada método público solo se preocupa de su propio prompt y
+    // de cómo interpretar el JSON de vuelta.
+    private async Task<string> EjecutarLlamadaAsync(List<object> mensajes)
+    {
+        var apiKey = configuracion["Groq:ApiKey"]
+            ?? throw new InvalidOperationException("Falta configurar Groq:ApiKey (appsettings.Development.json o variables de entorno).");
+        var modelo = configuracion["Groq:Modelo"] ?? "openai/gpt-oss-120b";
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.groq.com/openai/v1/chat/completions");
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        httpRequest.Content = JsonContent.Create(new
+        {
+            model = modelo,
+            messages = mensajes,
+            response_format = new { type = "json_object" },
+            temperature = 0.4
+        });
+
+        var respuesta = await httpClient.SendAsync(httpRequest);
+        if (!respuesta.IsSuccessStatusCode)
+        {
+            var detalleError = await respuesta.Content.ReadAsStringAsync();
+            throw new InvalidOperationException($"Groq devolvió {(int)respuesta.StatusCode}: {detalleError}");
+        }
+
+        var payload = await respuesta.Content.ReadFromJsonAsync<GroqChatResponse>(JsonOpciones);
+        return payload?.Choices?.FirstOrDefault()?.Message?.Content ?? string.Empty;
     }
 
     private class GroqChatResponse

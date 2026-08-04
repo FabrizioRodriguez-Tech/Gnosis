@@ -14,6 +14,7 @@ public class GnosisDbContext(DbContextOptions<GnosisDbContext> options)
     public DbSet<Tarea> Tareas => Set<Tarea>();
     public DbSet<SesionEnfoque> SesionesEnfoque => Set<SesionEnfoque>();
     public DbSet<BloqueTiempo> BloquesTiempo => Set<BloqueTiempo>();
+    public DbSet<SiembraEnfoque> SiembrasEnfoque => Set<SiembraEnfoque>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -108,6 +109,20 @@ public class GnosisDbContext(DbContextOptions<GnosisDbContext> options)
                 .WithMany()
                 .HasForeignKey(b => b.TareaId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // =========================================================================
+        // CONFIGURACIÓN DE LA ENTIDAD: SiembraEnfoque (Focus Forest / gamificación)
+        // =========================================================================
+        modelBuilder.Entity<SiembraEnfoque>(entity =>
+        {
+            entity.ToTable("SiembrasEnfoque");
+            entity.HasKey(s => s.Id);
+
+            entity.Property(s => s.UsuarioId).IsRequired();
+            entity.HasIndex(s => s.UsuarioId);
+
+            entity.Property(s => s.Fecha).IsRequired();
         });
     }
 }

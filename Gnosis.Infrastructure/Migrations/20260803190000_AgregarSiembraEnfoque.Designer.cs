@@ -3,6 +3,7 @@ using System;
 using Gnosis.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Gnosis.Infrastructure.Migrations
 {
     [DbContext(typeof(GnosisDbContext))]
-    partial class GnosisDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260803190000_AgregarSiembraEnfoque")]
+    partial class AgregarSiembraEnfoque
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
