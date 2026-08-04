@@ -18,8 +18,16 @@
 
 @if (tareas == null)
 {
-    <div style="background: #1e1e1e; color: #ffffff; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif;">
-        <span style="font-size: 1.1rem; letter-spacing: 1px; opacity: 0.8;">Iniciando Gnosis...</span>
+    @* Mismo aro/halo que la pantalla de carga inicial y el <Authorizing> de App.razor, para que
+       sea una sola animación continua hasta que las tareas terminan de cargar — antes acá se
+       cortaba a un cuadro de texto plano ("Iniciando Gnosis..."), el mismo salto visual que ya
+       se había corregido para la verificación de sesión. *@
+    <div class="pantalla-carga">
+        <svg class="loading-progress">
+            <circle r="40%" cx="50%" cy="50%" />
+            <circle r="40%" cx="50%" cy="50%" />
+        </svg>
+        <div class="loading-progress-text"></div>
     </div>
 }
 else

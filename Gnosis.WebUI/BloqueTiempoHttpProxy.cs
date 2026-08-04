@@ -34,20 +34,30 @@ namespace Gnosis.WebUI
         public async Task<BloqueTiempoModel> CrearAsync(BloqueTiempoModel nuevoBloque)
         {
             var respuesta = await _httpClient.PostAsJsonAsync("api/BloquesTiempo", nuevoBloque);
-            respuesta.EnsureSuccessStatusCode();
+            await LanzarSiErrorAsync(respuesta);
             return await respuesta.Content.ReadFromJsonAsync<BloqueTiempoModel>() ?? nuevoBloque;
         }
 
         public async Task ActualizarAsync(BloqueTiempoModel bloqueActualizado)
         {
             var respuesta = await _httpClient.PutAsJsonAsync($"api/BloquesTiempo/{bloqueActualizado.Id}", bloqueActualizado);
-            respuesta.EnsureSuccessStatusCode();
+            await LanzarSiErrorAsync(respuesta);
         }
 
         public async Task EliminarAsync(Guid id)
         {
             var respuesta = await _httpClient.DeleteAsync($"api/BloquesTiempo/{id}");
-            respuesta.EnsureSuccessStatusCode();
+            await LanzarSiErrorAsync(respuesta);
+        }
+
+        // Mismo motivo que en TareaHttpProxy: EnsureSuccessStatusCode() sola no trae el cuerpo de
+        // la respuesta, así que los errores (ej. FK violation si el bloque queda vinculado a una
+        // tarea que no llegó a guardarse) se veían siempre igual, sin pista de la causa real.
+        private static async Task LanzarSiErrorAsync(HttpResponseMessage respuesta)
+        {
+            if (respuesta.IsSuccessStatusCode) return;
+            var detalle = await respuesta.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"{(int)respuesta.StatusCode} {respuesta.ReasonPhrase}: {detalle}");
         }
     }
 }

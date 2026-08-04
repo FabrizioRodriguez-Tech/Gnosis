@@ -24,7 +24,9 @@ public class IAController(IIAService iaService, ILogger<IAController> logger) : 
         catch (Exception ex)
         {
             logger.LogError(ex, "Falló la consulta a la IA");
-            return StatusCode(500, "No se pudo consultar la IA en este momento.");
+            // Igual que TareasController: se expone ex.Message (no el stack completo) para que el
+            // error real se vea también en el cliente sin tener que ir a buscar los logs del server.
+            return StatusCode(500, $"No se pudo consultar la IA en este momento: {ex.Message}");
         }
     }
 }

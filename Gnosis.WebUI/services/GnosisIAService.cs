@@ -90,12 +90,23 @@ namespace Gnosis.WebUI.services
 
                 if (raw.Bloques != null && raw.Bloques.Any())
                 {
+                    // Título → Id de las tareas/subtareas que se acaban de crear en esta misma
+                    // respuesta, para poder resolver "tituloTareaVinculada" a un Guid real. Solo
+                    // cubre tareas nuevas de este turno (las de antes no tienen forma de identificarse).
+                    var idsPorTitulo = (resultado.Tareas ?? new List<TareaModel>())
+                        .SelectMany(t => new[] { t }.Concat(t.Subtareas ?? new List<TareaModel>()))
+                        .GroupBy(t => t.Titulo)
+                        .ToDictionary(g => g.Key, g => g.First().Id);
+
                     resultado.Bloques = raw.Bloques.Select(b => new BloqueTiempoModel
                     {
                         Id = Guid.NewGuid(),
                         Titulo = b.Titulo,
                         FechaInicio = b.FechaHora,
-                        FechaFin = b.FechaHora.AddMinutes(b.DuracionMinutos > 0 ? b.DuracionMinutos : 60)
+                        FechaFin = b.FechaHora.AddMinutes(b.DuracionMinutos > 0 ? b.DuracionMinutos : 60),
+                        TareaId = !string.IsNullOrEmpty(b.TituloTareaVinculada) && idsPorTitulo.TryGetValue(b.TituloTareaVinculada, out var idVinculado)
+                            ? idVinculado
+                            : null
                     }).ToList();
                 }
 

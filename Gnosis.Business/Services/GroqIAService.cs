@@ -95,6 +95,13 @@ internal class GroqIAService(HttpClient httpClient, IConfiguration configuracion
         - Si estás agendando una tarea con subtareas repartidas en varios días, genera un bloque por
           cada subtarea/día, con el título de esa parte (ej. "Ejercicios 1 al 5").
         - "duracionMinutos" por defecto es 60 si el usuario no da una duración.
+        - Si el usuario pide que un bloque quede VINCULADO a una tarea o subtarea que estás creando
+          en esta MISMA respuesta (ej. "que esa tarea esté ligada al bloque"), ponle al bloque el
+          campo "tituloTareaVinculada" con el título EXACTO (carácter por carácter) de esa tarea o
+          subtarea tal cual la escribiste en "tareas". Solo funciona con tareas/subtareas que estés
+          creando en este mismo mensaje — NO puedes vincular un bloque a una tarea de un turno
+          anterior (no tienes forma de identificarla). Si no aplica, deja "tituloTareaVinculada" en
+          null, y no afirmes en "texto" que vinculaste algo si no puede ser así.
 
         El campo "texto" SIEMPRE debe llevar una explicación breve en lenguaje natural de lo que
         hiciste realmente (coherente con los campos "tareas"/"bloques" que estés devolviendo) —
@@ -129,7 +136,12 @@ internal class GroqIAService(HttpClient httpClient, IConfiguration configuracion
             }
           ],
           "bloques": [
-            { "titulo": "texto del bloque", "fechaHora": "2026-08-05T12:00:00", "duracionMinutos": 60 }
+            {
+              "titulo": "texto del bloque",
+              "fechaHora": "2026-08-05T12:00:00",
+              "duracionMinutos": 60,
+              "tituloTareaVinculada": null
+            }
           ]
         }
 
@@ -148,12 +160,17 @@ internal class GroqIAService(HttpClient httpClient, IConfiguration configuracion
         // La fecha/hora actual va como un segundo mensaje "system" (no dentro del const de arriba)
         // para que se recalcule en cada request — Groq no tiene noción del reloj real, y sin esto
         // no puede resolver "el próximo martes" ni nada relativo a fechas de forma confiable.
+        // Nombres en español a mano (sin CultureInfo/ICU): evita que esto reviente en un entorno
+        // con globalización invariante (ej. contenedores recortados) donde new CultureInfo("es-ES")
+        // lanza CultureNotFoundException y tumbaba CADA consulta a la IA.
         var ahora = DateTime.Now;
-        var culturaEs = new System.Globalization.CultureInfo("es-ES");
+        string[] diasEs = { "domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado" };
+        string[] mesesEs = { "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre" };
+        var nombreDia = diasEs[(int)ahora.DayOfWeek];
+        var nombreMes = mesesEs[ahora.Month - 1];
         var contextoFecha =
             $"Fecha y hora actual: {ahora:yyyy-MM-dd HH:mm} " +
-            $"({culturaEs.TextInfo.ToTitleCase(ahora.ToString("dddd", culturaEs))} " +
-            $"{ahora.Day} de {ahora.ToString("MMMM", culturaEs)} de {ahora.Year}). " +
+            $"({char.ToUpper(nombreDia[0]) + nombreDia[1..]} {ahora.Day} de {nombreMes} de {ahora.Year}). " +
             "Usa esta fecha como referencia para calcular cualquier fecha relativa " +
             "(\"mañana\", \"el próximo martes\", \"en 10 días\", etc.) y para el campo \"fechaHora\" de los bloques.";
 

@@ -56,5 +56,11 @@ namespace Gnosis.Business.Models
         // en el prompt (no relativas — "el próximo martes" ya debe venir resuelto a una fecha real).
         public DateTime FechaHora { get; set; }
         public int DuracionMinutos { get; set; } = 60;
+
+        // Opcional: título EXACTO de una tarea o subtarea que la IA está creando en la MISMA
+        // respuesta (dentro de "tareas"), para vincular este bloque a ella. GnosisIAService hace
+        // el match por título después de generar los Guids reales — solo funciona para tareas
+        // nuevas del mismo turno, no para tareas ya existentes de antes.
+        public string? TituloTareaVinculada { get; set; }
     }
 }
